@@ -1,4 +1,4 @@
-from tqdm import tqdm; tqdm.monitor_interval = 0
+from tqdm import tqdm#; tqdm.monitor_interval = 0
 
 
 class BaseTrainer:
@@ -14,31 +14,32 @@ class BaseTrainer:
         self.should_validate = not self.validate_every is None
         self.should_plot = not self.plot_every is None
 
-    def run_training(self, training_data, val_data=None, plot_every=50, val_bleu_every=100):
-        self.train_mode()
+        self.train_dataloader = None
 
-        self.val_data = val_data
+    def run_training(self):
+        should_continue = True
 
-        while not self.should_stop():
+        while self.num_epochs_done < self.max_num_epochs and should_continue:
             try:
-                for batch in tqdm(training_data, leave=False):
-                    self.train_step(batch)
+                for batch in tqdm(self.train_dataloader, leave=False):
+                    self.train_on_batch(batch)
+                    self.num_iters_done += 1
+                    self.validate()
+                    self.update_plots()
             except KeyboardInterrupt:
-                self.is_interrupted = True
+                should_continue = False
                 break
 
             self.num_epochs_done += 1
 
-    def train_step(self, batch):
-        self.train_on_batch(batch)
+    def train_on_batch(self, batch):
+        pass
 
-        if self.should_validate and self.num_iters_done % self.validate_every == 0:
-            self.validate(self.val_data)
+    def validate(self):
+        pass
 
-        if self.should_plot and self.num_iters_done % self.plot_every == 0:
-            self.plot_scores()
-
-        self.num_iters_done += 1
+    def update_plots(self):
+        pass
 
     def should_stop(self):
         if self.max_num_iters and self.num_iters_done >= self.max_num_iters: return True
@@ -50,15 +51,6 @@ class BaseTrainer:
     def should_early_stop(self):
         """Checks early stopping criteria"""
         return False
-
-    def train_on_batch(self, batch):
-        pass
-
-    def validate(self, val_data):
-        pass
-
-    def plot_scores(self):
-        pass
 
     def train_mode(self):
         pass

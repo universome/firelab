@@ -37,19 +37,20 @@ def start_experiment(args):
         # Let's augment config with some helping stuff
         config['firelab'] = {}
         config['firelab']['project_path'] = os.getcwd()
+        config['firelab']['logs_path'] = logs_path
 
         # TODO: make config immutable
 
-    # runner_path = path.join("src/runners/", config.get("runner") + ".py")
+    # trainer_path = path.join("src/trainers/", config.get("trainer") + ".py")
     # TODO: can be arbitrary? Can we have name collisions?
-    # runner_module_name = "module.runner." + config.get("runner")
-    # runner_module_spec = importlib.util.spec_from_file_location(runner_module_name, runner_path)
-    # runner = importlib.util.module_from_spec(runner_module_spec)
-    # runner_module_spec.loader.exec_module(runner)
+    # trainer_module_name = "module.trainer." + config.get("trainer")
+    # trainer_module_spec = importlib.util.spec_from_file_location(trainer_module_name, trainer_path)
+    # trainer = importlib.util.module_from_spec(trainer_module_spec)
+    # trainer_module_spec.loader.exec_module(trainer)
 
-    # TODO: are there any better ways to reach src.runners?
+    # TODO: are there any better ways to reach src.trainers?
     sys.path.append(os.getcwd())
-    runners = importlib.import_module('src.runners')
-    runner_cls = getattr(runners, config.get('runner'))
-    runner = runner_cls(config)
-    runner.start()
+    trainers = importlib.import_module('src.trainers')
+    trainer_cls = getattr(trainers, config.get('trainer'))
+    trainer = trainer_cls(config)
+    trainer.start()
