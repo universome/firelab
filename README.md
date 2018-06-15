@@ -49,3 +49,4 @@ exp.config.get('max_num_iters')
 
 ### TODO
 - Interactive config builder
+- Clone experiment/config

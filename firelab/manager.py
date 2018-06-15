@@ -17,14 +17,17 @@ def start_experiment(args):
 
     config_path = os.path.join(experiments_dir, exp_name, "config.yml")
     logs_path = os.path.join(experiments_dir, exp_name, "logs")
+    checkpoints_path = os.path.join(experiments_dir, exp_name, "checkpoints")
     summary_path = os.path.join(experiments_dir, exp_name, "summary.md")
 
     if not os.path.isfile(config_path): raise FileNotFoundError(config_path)
     if args.overwrite is False:
         if os.path.exists(logs_path): raise Exception(RESULTS_EXIST_ERROR_MSG.format(logs_path))
+        if os.path.exists(checkpoints_path): raise Exception(RESULTS_EXIST_ERROR_MSG.format(checkpoints_path))
         if os.path.exists(summary_path): raise Exception(RESULTS_EXIST_ERROR_MSG.format(summary_path))
 
     if not os.path.exists(logs_path): os.mkdir(logs_path)
+    if not os.path.exists(checkpoints_path): os.mkdir(checkpoints_path)
 
     # TODO: ensure write access to the directory
 
@@ -38,6 +41,7 @@ def start_experiment(args):
         config['firelab'] = {}
         config['firelab']['project_path'] = os.getcwd()
         config['firelab']['logs_path'] = logs_path
+        config['firelab']['checkpoints_path'] = checkpoints_path
 
         # TODO: make config immutable
 
