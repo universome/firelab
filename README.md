@@ -1,12 +1,12 @@
 ### About
-Framework for running DL experiments with pytorch
+Framework for running DL experiments with pytorch.
 Provides the following helping stuff:
-- `Runner` — controls the experiment: loads data, runs/stops training, etc
-- `Trainer` — trains your model (runs iterations)
-- `Plotter` — runs on top of logger. To plot smth you have to log it first (this is quite obvious: we cant plot stuff without reference to it. And keeping everything in memory is not a good idea)
+- `Trainer` — controls the experiment: loads data, runs/stops training, performs logging, etc
 - `hp` — helps configuring hyperparameters.
 - `configs` — configs for experiments (WIP)
 
+### Installation
+`pip install firelab`
 
 ### Useful commands:
 - `firelab ls` — lists all running experiments
