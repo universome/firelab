@@ -4,6 +4,7 @@ import importlib.util
 
 import yaml
 
+from .utils import clean_dir
 
 # TODO: move error msgs into separate file?
 RESULTS_EXIST_ERROR_MSG = ("`{}` directory or file already exists: "
@@ -26,8 +27,8 @@ def start_experiment(args):
         if os.path.exists(checkpoints_path): raise Exception(RESULTS_EXIST_ERROR_MSG.format(checkpoints_path))
         if os.path.exists(summary_path): raise Exception(RESULTS_EXIST_ERROR_MSG.format(summary_path))
 
-    if not os.path.exists(logs_path): os.mkdir(logs_path)
-    if not os.path.exists(checkpoints_path): os.mkdir(checkpoints_path)
+    clean_dir(logs_path)
+    clean_dir(checkpoints_path)
 
     # TODO: ensure write access to the directory
 
@@ -44,13 +45,6 @@ def start_experiment(args):
         config['firelab']['checkpoints_path'] = checkpoints_path
 
         # TODO: make config immutable
-
-    # trainer_path = path.join("src/trainers/", config.get("trainer") + ".py")
-    # TODO: can be arbitrary? Can we have name collisions?
-    # trainer_module_name = "module.trainer." + config.get("trainer")
-    # trainer_module_spec = importlib.util.spec_from_file_location(trainer_module_name, trainer_path)
-    # trainer = importlib.util.module_from_spec(trainer_module_spec)
-    # trainer_module_spec.loader.exec_module(trainer)
 
     # TODO: are there any better ways to reach src.trainers?
     sys.path.append(os.getcwd())
