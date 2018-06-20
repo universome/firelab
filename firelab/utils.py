@@ -30,7 +30,10 @@ def compute_param_by_scheme(scheme:HPLinearScheme, num_iters_done:int):
     if num_iters_done >= period:
         return t2
     else:
-        return t1 - (t1 - t2) * num_iters_done / period
+        if t1 > t2:
+            return t1 - (t1 - t2) * num_iters_done / period
+        else:
+            return t1 + (t2 - t1) * num_iters_done / period
 
 
 def clean_dir(dir, create=True):

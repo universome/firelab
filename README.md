@@ -6,7 +6,9 @@ Provides the following helping stuff:
 - `configs` — configs for experiments (WIP)
 
 ### Installation
-`pip install firelab`
+```
+pip install firelab
+```
 
 ### Useful commands:
 - `firelab ls` — lists all running experiments

@@ -17,7 +17,11 @@ class BaseTrainer:
         self.early_stopping_last_n_iters = config.get('early_stopping_last_n_iters')
 
         self.val_freq = config.get('val_freq')
-        self.checkpoint_freq = config.get('checkpoint_freq', 100)
+        self.checkpoint_freq = config.get('checkpoint_freq')
+        self.checkpoint_freq_epochs = config.get('checkpoint_freq_epochs')
+
+        assert not (self.checkpoint_freq and self.checkpoint_freq_epochs), """
+            Can't save both on iters and epochs"""
 
         self.train_dataloader = None
         self.val_dataloader = None
@@ -65,8 +69,17 @@ class BaseTrainer:
         pass
 
     def try_to_checkpoint(self):
-        if self.checkpoint_freq and self.num_iters_done % self.checkpoint_freq == 0:
-            self.checkpoint()
+        should_checkpoint = False
+
+        if self.checkpoint_freq:
+            should_checkpoint = self.num_iters_done % self.checkpoint_freq == 0
+        elif self.checkpoint_freq_epochs:
+            # TODO: looks like govnokod
+            epoch_size = len(self.train_dataloader)
+            freq = self.checkpoint_freq_epochs * epoch_size
+            should_checkpoint = self.num_iters_done % freq == 0
+
+        if should_checkpoint: self.checkpoint()
 
     def checkpoint(self):
         pass
@@ -89,6 +102,6 @@ class BaseTrainer:
         pass
 
     def save_model(self, model, name):
-        model_name = '{}-{}.pth'.format(name, self.num_iters_done)
+        model_name = '{}-{}-{}.pth'.format(name, self.num_epochs_done, self.num_iters_done)
         model_path = os.path.join(self.config['firelab']['checkpoints_path'], model_name)
         torch.save(model.state_dict(), model_path)
