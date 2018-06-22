@@ -3,6 +3,8 @@ import sys
 import importlib.util
 
 import yaml
+import numpy
+import torch
 
 from .utils import clean_dir
 
@@ -43,6 +45,10 @@ def start_experiment(args):
         config['firelab']['project_path'] = os.getcwd()
         config['firelab']['logs_path'] = logs_path
         config['firelab']['checkpoints_path'] = checkpoints_path
+
+        if 'random_seed' in config:
+            torch.manual_seed(config['random_seed'])
+            numpy.random.seed(config['random_seed'])
 
         # TODO: make config immutable
 
