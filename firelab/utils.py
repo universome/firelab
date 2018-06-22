@@ -25,15 +25,12 @@ def compute_param_by_scheme(scheme:HPLinearScheme, num_iters_done:int):
                    during scheme.period
     :param num_iters_done
     """
-    t1, t2, period = scheme
+    start_val, end_val, period = scheme
 
     if num_iters_done >= period:
-        return t2
+        return end_val
     else:
-        if t1 > t2:
-            return t1 - (t1 - t2) * num_iters_done / period
-        else:
-            return t1 + (t2 - t1) * num_iters_done / period
+        return start_val + (end_val - start_val) * num_iters_done / period
 
 
 def clean_dir(dir, create=True):
