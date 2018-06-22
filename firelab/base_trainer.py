@@ -101,7 +101,12 @@ class BaseTrainer:
     def test_mode(self):
         pass
 
-    def save_model(self, model, name):
-        model_name = '{}-{}-{}.pth'.format(name, self.num_epochs_done, self.num_iters_done)
-        model_path = os.path.join(self.config['firelab']['checkpoints_path'], model_name)
-        torch.save(model.state_dict(), model_path)
+    def save_module_state(self, module, name):
+        module_name = '{}-{}.pth'.format(name, self.num_iters_done)
+        module_path = os.path.join(self.config['firelab']['checkpoints_path'], module_name)
+        torch.save(module.state_dict(), module_path)
+
+    def load_module_state(self, module, name, iter):
+        module_name = '{}-{}.pth'.format(name, iter)
+        module_path = os.path.join(self.config['firelab']['checkpoints_path'], module_name)
+        module.load_state_dict(torch.load(module_path))

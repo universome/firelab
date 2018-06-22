@@ -29,9 +29,6 @@ def start_experiment(args):
         if os.path.exists(checkpoints_path): raise Exception(RESULTS_EXIST_ERROR_MSG.format(checkpoints_path))
         if os.path.exists(summary_path): raise Exception(RESULTS_EXIST_ERROR_MSG.format(summary_path))
 
-    clean_dir(logs_path)
-    clean_dir(checkpoints_path)
-
     # TODO: ensure write access to the directory
 
     with open(config_path, "r", encoding="utf-8") as config_file:
@@ -51,6 +48,9 @@ def start_experiment(args):
             numpy.random.seed(config['random_seed'])
 
         # TODO: make config immutable
+
+    clean_dir(logs_path)
+    if not 'start_from_checkpoint' in config: clean_dir(checkpoints_path)
 
     # TODO: are there any better ways to reach src.trainers?
     sys.path.append(os.getcwd())
