@@ -1,5 +1,6 @@
 import os
 import sys
+import random
 import importlib.util
 
 import yaml
@@ -7,6 +8,8 @@ import numpy
 import torch
 
 from .utils import clean_dir
+from .config import fix_random_seed
+
 
 # TODO: move error msgs into separate file?
 RESULTS_EXIST_ERROR_MSG = ("`{}` directory or file already exists: "
@@ -23,11 +26,16 @@ def start_experiment(args):
     checkpoints_path = os.path.join(experiments_dir, exp_name, "checkpoints")
     summary_path = os.path.join(experiments_dir, exp_name, "summary.md")
 
-    if not os.path.isfile(config_path): raise FileNotFoundError(config_path)
+    if not os.path.isfile(config_path):
+        raise FileNotFoundError(config_path)
+
     if args.overwrite is False:
-        if os.path.exists(logs_path): raise Exception(RESULTS_EXIST_ERROR_MSG.format(logs_path))
-        if os.path.exists(checkpoints_path): raise Exception(RESULTS_EXIST_ERROR_MSG.format(checkpoints_path))
-        if os.path.exists(summary_path): raise Exception(RESULTS_EXIST_ERROR_MSG.format(summary_path))
+        if os.path.exists(logs_path):
+            raise Exception(RESULTS_EXIST_ERROR_MSG.format(logs_path))
+        if os.path.exists(checkpoints_path):
+            raise Exception(RESULTS_EXIST_ERROR_MSG.format(checkpoints_path))
+        if os.path.exists(summary_path):
+            raise Exception(RESULTS_EXIST_ERROR_MSG.format(summary_path))
 
     # TODO: ensure write access to the directory
 
@@ -44,8 +52,7 @@ def start_experiment(args):
         config['firelab']['checkpoints_path'] = checkpoints_path
 
         if 'random_seed' in config:
-            torch.manual_seed(config['random_seed'])
-            numpy.random.seed(config['random_seed'])
+            fix_random_seed(config['random_seed'])
 
         # TODO: make config immutable
 
