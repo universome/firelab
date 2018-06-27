@@ -96,9 +96,11 @@ class BaseTrainer:
         return False
 
     def train_mode(self):
+        """Switches all components into training mode"""
         pass
 
-    def test_mode(self):
+    def eval_mode(self):
+        """Switches all components into evaluation mode"""
         pass
 
     def save_module_state(self, module, name):

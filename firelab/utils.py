@@ -39,3 +39,11 @@ def clean_dir(dir, create=True):
     if os.path.exists(dir): shutil.rmtree(dir)
     os.mkdir(dir)
 
+def fix_random_seed(seed):
+    import random
+    import torch
+    import numpy
+
+    torch.manual_seed(seed)
+    numpy.random.seed(seed)
+    random.seed(seed)

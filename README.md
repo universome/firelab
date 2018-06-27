@@ -2,8 +2,8 @@
 Framework for running DL experiments with pytorch.
 Provides the following helping stuff:
 - `BaseTrainer` — controls the experiment: loads data, runs/stops training, performs logging, etc
-- `hp` — helps configuring hyperparameters.
 - `configs` — configs for experiments (WIP)
+- useful utils for HP tuning and working with pytorch (look them up in `utils.py`)
 
 ### Installation
 ```
@@ -33,4 +33,4 @@ Experiment name can't duplicate each other.
 ### TODO
 - Interactive config builder
 - Clone experiment/config
--
+- Add examples with several trainers in them

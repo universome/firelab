@@ -7,8 +7,7 @@ import yaml
 import numpy
 import torch
 
-from .utils import clean_dir
-from .config import fix_random_seed
+from .utils import clean_dir, fix_random_seed
 
 
 # TODO: move error msgs into separate file?
