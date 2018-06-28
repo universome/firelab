@@ -1,8 +1,9 @@
+## firelab (version 0.0.3)
 ### About
 Framework for running DL experiments with pytorch.
-Provides the following helping stuff:
-- `BaseTrainer` — controls the experiment: loads data, runs/stops training, performs logging, etc
-- `configs` — configs for experiments (WIP)
+Provides the following useful stuff:
+- allows to `start`/`continue` your experiment with easy commands from yml config file
+- easier to save checkpoints, write logs and visualize training
 - useful utils for HP tuning and working with pytorch (look them up in `utils.py`)
 
 ### Installation
@@ -13,6 +14,9 @@ pip install firelab
 ### Useful commands:
 - `firelab ls` — lists all running experiments
 - `firelab start` / `firelab stop` / `firelab pause` / `firelab continue` — starts/stops/pauses/continues experiments
+
+### Useful classes
+- `BaseTrainer` — controls the experiment: loads data, runs/stops training, performs logging, etc
 
 Cool staff firelab can do:
 - Reduces amount of boilerplate code you write for training/running experiments
