@@ -43,8 +43,8 @@ def start_experiment(config, args):
 
     # TODO: ensure write access to the directory
     if not 'continue_from_iter' in config['firelab']:
-        clean_dir(config['checkpoints_path'])
-        clean_dir(config['logs_path'])
+        clean_dir(config['firelab']['checkpoints_path'])
+        clean_dir(config['firelab']['logs_path'])
 
     # TODO: are there any better ways to reach src.trainers?
     sys.path.append(os.getcwd())
