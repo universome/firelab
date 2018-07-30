@@ -31,12 +31,22 @@ class BaseTrainer:
     def start(self):
         self.init_dataloaders()
         self.init_models()
+        self.init_criterions()
+        self.init_optimizers()
+        self.load_checkpoint()
+
         self.run_training()
 
     def init_dataloaders(self):
         pass
 
     def init_models(self):
+        pass
+
+    def init_criterions(self):
+        pass
+
+    def init_optimizers(self):
         pass
 
     def run_training(self):
@@ -48,7 +58,7 @@ class BaseTrainer:
                     self.num_iters_done += 1
                     self.log_scores()
                     self.try_to_validate()
-                    self.try_to_checkpoint()
+                    self.checkpoint()
 
                 self.num_epochs_done += 1
             except KeyboardInterrupt:
@@ -68,7 +78,7 @@ class BaseTrainer:
     def validate(self):
         pass
 
-    def try_to_checkpoint(self):
+    def checkpoint(self):
         should_checkpoint = False
 
         if self.checkpoint_freq:
@@ -79,10 +89,31 @@ class BaseTrainer:
             freq = self.checkpoint_freq_epochs * epoch_size
             should_checkpoint = self.num_iters_done % freq == 0
 
-        if should_checkpoint: self.checkpoint()
+        if not should_checkpoint: return
 
-    def checkpoint(self):
+        for module_name in self.config['checkpoint']['modules']:
+            self.save_module_state(getattr(self, module_name), module_name)
+
+        self.checkpoint_freq_warning()
+
+    def checkpoint_freq_warning(self):
+        """
+        Prints warning if we write checkpoints too often
+        TODO: wip
+        """
         pass
+
+    def load_checkpoint(self):
+        """
+        Loads model state from checkpoint if it is provided
+        """
+        if not 'continue_from_iter' in self.config['firelab']: return
+
+        self.num_iters_done = self.config['firelab'].get('continue_from_iter')
+        self.num_epochs_done = self.num_iters_done // len(self.train_dataloader)
+
+        for module_name in self.config['checkpoint']['modules']:
+            self.load_module_state(getattr(self, module_name), module_name)
 
     def should_stop(self):
         if self.max_num_iters and self.num_iters_done >= self.max_num_iters: return True

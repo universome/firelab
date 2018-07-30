@@ -8,6 +8,7 @@ import torch
 use_cuda = torch.cuda.is_available()
 HPLinearScheme = namedtuple('HPLinearScheme', ['start_val', 'end_val', 'period'])
 
+
 def cudable(x):
     """
     Transforms torch tensor/module to cuda tensor/module
@@ -38,6 +39,7 @@ def clean_dir(dir, create=True):
     # TODO: Can't tensorboard use only latest log?
     if os.path.exists(dir): shutil.rmtree(dir)
     os.mkdir(dir)
+
 
 def fix_random_seed(seed):
     import random
