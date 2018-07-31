@@ -17,8 +17,11 @@ class BaseTrainer:
         self.early_stopping_last_n_iters = config.get('early_stopping_last_n_iters')
 
         self.val_freq = config.get('val_freq')
-        self.checkpoint_freq = config.get('checkpoint_freq')
-        self.checkpoint_freq_epochs = config.get('checkpoint_freq_epochs')
+
+        if 'checkpoint' in self.config:
+            self.checkpoint_freq = self.config['checkpoint'].get('freq_iters')
+            self.checkpoint_freq_epochs = self.config['checkpoint'].get('freq_epochs')
+            self.checkpoint_list = self.config['checkpoint']['modules']
 
         assert not (self.checkpoint_freq and self.checkpoint_freq_epochs), """
             Can't save both on iters and epochs"""
@@ -91,7 +94,7 @@ class BaseTrainer:
 
         if not should_checkpoint: return
 
-        for module_name in self.config['checkpoint']['modules']:
+        for module_name in self.checkpoint_list:
             self.save_module_state(getattr(self, module_name), module_name)
 
         self.checkpoint_freq_warning()
@@ -112,7 +115,7 @@ class BaseTrainer:
         self.num_iters_done = self.config['firelab'].get('continue_from_iter')
         self.num_epochs_done = self.num_iters_done // len(self.train_dataloader)
 
-        for module_name in self.config['checkpoint']['modules']:
+        for module_name in self.checkpoint_list:
             self.load_module_state(getattr(self, module_name), module_name)
 
     def should_stop(self):
