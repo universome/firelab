@@ -1,6 +1,7 @@
 import os
 from collections import namedtuple
 import shutil
+import subprocess
 
 import torch
 import numpy as np
@@ -68,3 +69,10 @@ def is_history_improving(history, n_steps: int, should_decrease: bool):
         return np.argmin(history[-n_steps:]) == 0
     else:
         return np.argmax(history[-n_steps:]) == 0
+
+def run_tensorboard(logdir, port):
+    # TODO(universome): well, tensorboard has some kind of python API,
+    # but we can't call tb using it, because there are some conflicting
+    # proto files between tensorboardX and tensorboard
+    # https://github.com/lanpa/tensorboardX/issues/206
+    subprocess.Popen(['tensorboard', '--logdir', logdir, '--port', str(port)])

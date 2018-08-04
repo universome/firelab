@@ -129,7 +129,7 @@ class BaseTrainer:
             return True
 
         if self.should_early_stop():
-            print('Terminating experiment due early stopping')
+            print('Terminating experiment due to early stopping')
             return True
 
         return False

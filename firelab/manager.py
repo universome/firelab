@@ -7,7 +7,7 @@ import yaml
 import numpy
 import torch
 
-from .utils import clean_dir, fix_random_seed
+from .utils import clean_dir, fix_random_seed, run_tensorboard
 
 
 # TODO: move error msgs into separate file?
@@ -40,6 +40,9 @@ def start_experiment(config, args):
         validate_path_existence(config['firelab']['checkpoints_path'], False)
         validate_path_existence(config['firelab']['summary_path'], False)
 
+    if args.tb_port:
+        print('Starting tensorboard on port', args.tb_port)
+        run_tensorboard(config['firelab']['logs_path'], args.tb_port)
 
     # TODO: ensure write access to the directory
     if not 'continue_from_iter' in config['firelab']:
