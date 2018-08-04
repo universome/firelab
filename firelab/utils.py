@@ -3,6 +3,7 @@ from collections import namedtuple
 import shutil
 
 import torch
+import numpy as np
 
 # TODO: check `no_cuda` argument in config
 use_cuda = torch.cuda.is_available()
@@ -49,3 +50,21 @@ def fix_random_seed(seed):
     torch.manual_seed(seed)
     numpy.random.seed(seed)
     random.seed(seed)
+
+
+def is_history_improving(history, n_steps: int, should_decrease: bool):
+    """
+    Checks by history if it has being improved since last 3 steps
+    Returns true if the history is too short
+
+    Arguments:
+        - history: Iterable — history of the metric to check
+        - n_steps: metric should have been improved at least once during last 3 steps
+        - should_increase: flag which says if it should grow up or down
+    """
+    if len(history) < n_steps: return True
+
+    if should_decrease:
+        return np.argmin(history[-n_steps:]) == 0
+    else:
+        return np.argmax(history[-n_steps:]) == 0

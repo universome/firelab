@@ -4,7 +4,7 @@ import torch
 from tensorboardX import SummaryWriter
 from tqdm import tqdm
 
-from firelab.utils import cudable
+from firelab.utils import cudable, is_history_improving
 
 class BaseTrainer:
     def __init__(self, config):
@@ -14,7 +14,7 @@ class BaseTrainer:
         self.max_num_epochs = config.get('max_num_epochs')
         self.max_num_iters = config.get('max_num_iters')
         self.val_freq = config.get('val_freq')
-        self.early_stopping_last_n_iters = config.get('early_stopping_last_n_iters')
+        self.losses = {}
 
         self.val_freq = config.get('val_freq')
 
@@ -116,18 +116,33 @@ class BaseTrainer:
         self.num_epochs_done = self.num_iters_done // len(self.train_dataloader)
 
         for module_name in self.checkpoint_list:
-            self.load_module_state(getattr(self, module_name), module_name)
+            self.load_module_state(getattr(self, module_name), module_name, self.num_iters_done)
 
     def should_stop(self):
-        if self.max_num_iters and self.num_iters_done >= self.max_num_iters: return True
-        if self.max_num_epochs and self.num_epochs_done >= self.max_num_epochs: return True
-        if self.should_early_stop(): return True
+        """Checks all stopping criteria"""
+        if self.max_num_iters and self.num_iters_done >= self.max_num_iters:
+            print('Terminating experiment because max num iters exceeded')
+            return True
+
+        if self.max_num_epochs and self.num_epochs_done >= self.max_num_epochs:
+            print('Terminating experiment because max num epochs exceeded')
+            return True
+
+        if self.should_early_stop():
+            print('Terminating experiment due early stopping')
+            return True
 
         return False
 
     def should_early_stop(self):
-        """Checks early stopping criteria"""
-        return False
+        """Checks early stopping criterion"""
+        if not 'early_stopping' in self.config: return False
+
+        history = self.losses[self.config['early_stopping']['loss']]
+        n_steps = self.config['early_stopping']['history_length']
+        should_decrease = self.config['early_stopping']['should_decrease']
+
+        return not is_history_improving(history, n_steps, should_decrease)
 
     def train_mode(self):
         """Switches all components into training mode"""
@@ -142,7 +157,7 @@ class BaseTrainer:
         module_path = os.path.join(self.config['firelab']['checkpoints_path'], module_name)
         torch.save(module.state_dict(), module_path)
 
-    def load_module_state(self, module, name, iter):
-        module_name = '{}-{}.pth'.format(name, iter)
+    def load_module_state(self, module, name, iteration):
+        module_name = '{}-{}.pth'.format(name, iteration)
         module_path = os.path.join(self.config['firelab']['checkpoints_path'], module_name)
         module.load_state_dict(torch.load(module_path))
