@@ -2,6 +2,7 @@ import os
 from collections import namedtuple
 import shutil
 import subprocess
+import atexit
 
 import torch
 import numpy as np
@@ -75,4 +76,5 @@ def run_tensorboard(logdir, port):
     # but we can't call tb using it, because there are some conflicting
     # proto files between tensorboardX and tensorboard
     # https://github.com/lanpa/tensorboardX/issues/206
-    subprocess.Popen(['tensorboard', '--logdir', logdir, '--port', str(port)])
+    proc = subprocess.Popen(['tensorboard', '--logdir', logdir, '--port', str(port)])
+    atexit.register(lambda: proc.terminate())
