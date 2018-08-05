@@ -32,7 +32,7 @@ def run(cmd, args):
 
 
 def start_experiment(config, args):
-    if config.firelab.continue_from_iter is None:
+    if config.firelab.get('continue_from_iter') is None:
         validate_path_existence(config.firelab.logs_path, True)
         validate_path_existence(config.firelab.checkpoints_path, True)
         # validate_path_existence(config.firelab.summary_path, True)
@@ -46,7 +46,7 @@ def start_experiment(config, args):
         run_tensorboard(config.firelab.logs_path, args.tb_port)
 
     # TODO: ensure write access to the directory
-    if config.firelab.continue_from_iter is None:
+    if config.firelab.get('continue_from_iter') is None:
         clean_dir(config.firelab.checkpoints_path)
         clean_dir(config.firelab.logs_path)
 
@@ -89,7 +89,7 @@ def load_config(args):
         config = Config(yaml.safe_load(config_file))
 
         # TODO: validate config
-        assert config.firelab is None
+        assert config.get('firelab') is None
 
         # Let's augment config with some helping stuff
         config.set('firelab', {
@@ -101,10 +101,10 @@ def load_config(args):
             'summary_path': summary_path,
         })
 
-        if not config.random_seed is None:
+        if config.get('random_seed'):
             fix_random_seed(config.random_seed)
 
-        if 'hpo' in config:
+        if config.get('hpo'):
             # Wow, this gonna be hot
             # We'll run several experiments on all available GPUs for HPO
 

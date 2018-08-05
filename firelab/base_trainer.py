@@ -16,12 +16,10 @@ class BaseTrainer:
         self.val_freq = config.get('val_freq')
         self.losses = {}
 
-        self.val_freq = config.get('val_freq')
-
-        if self.config.checkpoint:
-            self.checkpoint_freq = self.config['checkpoint'].get('freq_iters')
-            self.checkpoint_freq_epochs = self.config['checkpoint'].get('freq_epochs')
-            self.checkpoint_list = self.config['checkpoint']['modules']
+        if self.config.get('checkpoint'):
+            self.checkpoint_freq = self.config.checkpoint.get('freq_iters')
+            self.checkpoint_freq_epochs = self.config.checkpoint.get('freq_epochs')
+            self.checkpoint_list = self.config.checkpoint.modules
 
         assert not (self.checkpoint_freq and self.checkpoint_freq_epochs), """
             Can't save both on iters and epochs"""
@@ -110,7 +108,7 @@ class BaseTrainer:
         """
         Loads model state from checkpoint if it is provided
         """
-        if not self.config.firelab.continue_from_iter: return
+        if self.config.firelab.get('continue_from_iter') is None: return
 
         self.num_iters_done = self.config.firelab.continue_from_iter
         self.num_epochs_done = self.num_iters_done // len(self.train_dataloader)
@@ -136,11 +134,11 @@ class BaseTrainer:
 
     def should_early_stop(self):
         """Checks early stopping criterion"""
-        if not self.config.early_stopping: return False
+        if self.config.get('early_stopping') is None: return False
 
-        history = self.losses[self.config['early_stopping']['loss']]
-        n_steps = self.config['early_stopping']['history_length']
-        should_decrease = self.config['early_stopping']['should_decrease']
+        history = self.losses[self.config.early_stopping.loss]
+        n_steps = self.config.early_stopping.history_length
+        should_decrease = self.config.early_stopping.should_decrease
 
         return not is_history_improving(history, n_steps, should_decrease)
 
@@ -154,10 +152,10 @@ class BaseTrainer:
 
     def save_module_state(self, module, name):
         module_name = '{}-{}.pth'.format(name, self.num_iters_done)
-        module_path = os.path.join(self.config['firelab']['checkpoints_path'], module_name)
+        module_path = os.path.join(self.config.firelab.checkpoints_path, module_name)
         torch.save(module.state_dict(), module_path)
 
     def load_module_state(self, module, name, iteration):
         module_name = '{}-{}.pth'.format(name, iteration)
-        module_path = os.path.join(self.config['firelab']['checkpoints_path'], module_name)
+        module_path = os.path.join(self.config.firelab.checkpoints_path, module_name)
         module.load_state_dict(torch.load(module_path))
