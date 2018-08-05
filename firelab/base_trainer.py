@@ -18,7 +18,7 @@ class BaseTrainer:
 
         self.val_freq = config.get('val_freq')
 
-        if 'checkpoint' in self.config:
+        if self.config.checkpoint:
             self.checkpoint_freq = self.config['checkpoint'].get('freq_iters')
             self.checkpoint_freq_epochs = self.config['checkpoint'].get('freq_epochs')
             self.checkpoint_list = self.config['checkpoint']['modules']
@@ -29,7 +29,7 @@ class BaseTrainer:
         self.train_dataloader = None
         self.val_dataloader = None
 
-        self.writer = SummaryWriter(config['firelab']['logs_path'])
+        self.writer = SummaryWriter(config.firelab.logs_path)
 
     def start(self):
         self.init_dataloaders()
@@ -110,9 +110,9 @@ class BaseTrainer:
         """
         Loads model state from checkpoint if it is provided
         """
-        if not 'continue_from_iter' in self.config['firelab']: return
+        if not self.config.firelab.continue_from_iter: return
 
-        self.num_iters_done = self.config['firelab'].get('continue_from_iter')
+        self.num_iters_done = self.config.firelab.continue_from_iter
         self.num_epochs_done = self.num_iters_done // len(self.train_dataloader)
 
         for module_name in self.checkpoint_list:
@@ -136,7 +136,7 @@ class BaseTrainer:
 
     def should_early_stop(self):
         """Checks early stopping criterion"""
-        if not 'early_stopping' in self.config: return False
+        if not self.config.early_stopping: return False
 
         history = self.losses[self.config['early_stopping']['loss']]
         n_steps = self.config['early_stopping']['history_length']

@@ -8,6 +8,7 @@ import numpy
 import torch
 
 from .utils import clean_dir, fix_random_seed, run_tensorboard
+from .config import Config
 
 
 # TODO: move error msgs into separate file?
@@ -31,23 +32,23 @@ def run(cmd, args):
 
 
 def start_experiment(config, args):
-    if 'continue_from_iter' in config['firelab']:
-        validate_path_existence(config['firelab']['logs_path'], True)
-        validate_path_existence(config['firelab']['checkpoints_path'], True)
-        # validate_path_existence(config['firelab']['summary_path'], True)
+    if config.firelab.continue_from_iter is None:
+        validate_path_existence(config.firelab.logs_path, True)
+        validate_path_existence(config.firelab.checkpoints_path, True)
+        # validate_path_existence(config.firelab.summary_path, True)
     elif args.overwrite is False:
-        validate_path_existence(config['firelab']['logs_path'], False)
-        validate_path_existence(config['firelab']['checkpoints_path'], False)
-        validate_path_existence(config['firelab']['summary_path'], False)
+        validate_path_existence(config.firelab.logs_path, False)
+        validate_path_existence(config.firelab.checkpoints_path, False)
+        validate_path_existence(config.firelab.summary_path, False)
 
     if args.tb_port:
         print('Starting tensorboard on port', args.tb_port)
-        run_tensorboard(config['firelab']['logs_path'], args.tb_port)
+        run_tensorboard(config.firelab.logs_path, args.tb_port)
 
     # TODO: ensure write access to the directory
-    if not 'continue_from_iter' in config['firelab']:
-        clean_dir(config['firelab']['checkpoints_path'])
-        clean_dir(config['firelab']['logs_path'])
+    if config.firelab.continue_from_iter is None:
+        clean_dir(config.firelab.checkpoints_path)
+        clean_dir(config.firelab.logs_path)
 
     # TODO: are there any better ways to reach src.trainers?
     sys.path.append(os.getcwd())
@@ -59,7 +60,7 @@ def start_experiment(config, args):
 
 def continue_experiment(config, args):
     # Finding latest checkpoint
-    checkpoints = os.listdir(config['firelab']['checkpoints_path'])
+    checkpoints = os.listdir(config.firelab.checkpoints_path)
 
     if checkpoints == []:
         raise Exception('Can\'t continue: no checkpoints are available')
@@ -68,7 +69,7 @@ def continue_experiment(config, args):
     latest_iter = max(iters)
 
     print('Latest checkpoint found: {}. Continuing from it.'.format(latest_iter))
-    config['firelab']['continue_from_iter'] = latest_iter
+    config.firelab.continue_from_iter = latest_iter
     start_experiment(config, args)
 
 
@@ -85,22 +86,36 @@ def load_config(args):
         raise FileNotFoundError(config_path)
 
     with open(config_path, "r", encoding="utf-8") as config_file:
-        config = yaml.safe_load(config_file)
+        config = Config(yaml.safe_load(config_file))
 
         # TODO: validate config
-        assert not 'firelab' in config
+        assert config.firelab is None
 
         # Let's augment config with some helping stuff
-        config['firelab'] = {}
-        config['firelab']['project_path'] = os.getcwd()
-        config['firelab']['name'] = exp_name
-        config['firelab']['logs_path'] = logs_path
-        config['firelab']['checkpoints_path'] = checkpoints_path
-        config['firelab']['experiments_dir'] = experiments_dir
-        config['firelab']['summary_path'] = summary_path
+        config.set('firelab', {
+            'project_path': os.getcwd(),
+            'name': exp_name,
+            'logs_path': logs_path,
+            'checkpoints_path': checkpoints_path,
+            'experiments_dir': experiments_dir,
+            'summary_path': summary_path,
+        })
 
-        if 'random_seed' in config:
-            fix_random_seed(config['random_seed'])
+        if not config.random_seed is None:
+            fix_random_seed(config.random_seed)
+
+        if 'hpo' in config:
+            # Wow, this gonna be hot
+            # We'll run several experiments on all available GPUs for HPO
+
+            # Let's first generate configs for experiments
+
+            # Now we are ready to run each experiment individually
+            for gpu_idx in range(torch.cuda.device_count()):
+                # Unfortunately, the only way to specify multiple GPUs
+                # in pytorch is via CUDA_VISIBLE_DEVICES=...
+                # print(gpu_idx)
+                pass
 
         # TODO: make config immutable
 
