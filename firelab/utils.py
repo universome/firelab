@@ -1,8 +1,8 @@
 import os
-from collections import namedtuple
 import shutil
 import subprocess
 import atexit
+from collections import namedtuple
 
 import torch
 import numpy as np
@@ -78,3 +78,10 @@ def run_tensorboard(logdir, port):
     # https://github.com/lanpa/tensorboardX/issues/206
     proc = subprocess.Popen(['tensorboard', '--logdir', logdir, '--port', str(port)])
     atexit.register(lambda: proc.terminate())
+
+
+def grad_norm(params_gen, p=2):
+    """
+    Computes norm of the gradient for a given parameters list
+    """
+    return sum([w.grad.norm(p) ** p for w in params_gen]) ** (1 / p)
