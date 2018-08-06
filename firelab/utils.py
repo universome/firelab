@@ -76,7 +76,12 @@ def run_tensorboard(logdir, port):
     # but we can't call tb using it, because there are some conflicting
     # proto files between tensorboardX and tensorboard
     # https://github.com/lanpa/tensorboardX/issues/206
-    proc = subprocess.Popen(['tensorboard', '--logdir', logdir, '--port', str(port)])
+
+    # Let's remove gpu from tensorboard, because it eats too much
+    env = os.environ.copy()
+    env["CUDA_VISIBLE_DEVICES"] = ""
+
+    proc = subprocess.Popen(['tensorboard', '--logdir', logdir, '--port', str(port)], env=env)
     atexit.register(lambda: proc.terminate())
 
 
@@ -85,3 +90,9 @@ def grad_norm(params_gen, p=2):
     Computes norm of the gradient for a given parameters list
     """
     return sum([w.grad.norm(p) ** p for w in params_gen]) ** (1 / p)
+
+
+def check_if_oom(e: Exception):
+    """Checks if the given exception is cuda OOM"""
+    # TODO: is  there a better way for this?
+    return "cuda runtime error (2) : out of memory" in str(e)
