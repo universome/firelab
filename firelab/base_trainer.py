@@ -17,12 +17,14 @@ class BaseTrainer:
         self.losses = {}
 
         if self.config.get('checkpoint'):
-            self.checkpoint_freq = self.config.checkpoint.get('freq_iters')
+            self.checkpoint_freq_iters = self.config.checkpoint.get('freq_iters')
             self.checkpoint_freq_epochs = self.config.checkpoint.get('freq_epochs')
-            self.checkpoint_list = self.config.checkpoint.modules
+            self.checkpoint_list = self.config.modules.models + self.config.modules.optims
 
-        assert not (self.checkpoint_freq and self.checkpoint_freq_epochs), """
-            Can't save both on iters and epochs"""
+        assert not (self.checkpoint_freq_iters and self.checkpoint_freq_epochs), """
+            Can't save both on iters and epochs.
+            Please, remove either freq_iters or freq_epochs
+        """
 
         self.train_dataloader = None
         self.val_dataloader = None
@@ -82,8 +84,8 @@ class BaseTrainer:
     def checkpoint(self):
         should_checkpoint = False
 
-        if self.checkpoint_freq:
-            should_checkpoint = self.num_iters_done % self.checkpoint_freq == 0
+        if self.checkpoint_freq_iters:
+            should_checkpoint = self.num_iters_done % self.checkpoint_freq_iters == 0
         elif self.checkpoint_freq_epochs:
             # TODO: looks like govnokod
             epoch_size = len(self.train_dataloader)
@@ -143,12 +145,14 @@ class BaseTrainer:
         return not is_history_improving(history, n_steps, should_decrease)
 
     def train_mode(self):
-        """Switches all components into training mode"""
-        pass
+        """Switches all models into training mode"""
+        for model_name in self.config.modules.models:
+            getattr(self, model_name).train()
 
     def eval_mode(self):
-        """Switches all components into evaluation mode"""
-        pass
+        """Switches all models into evaluation mode"""
+        for model_name in self.config.modules.models:
+            getattr(self, model_name).eval()
 
     def save_module_state(self, module, name):
         module_name = '{}-{}.pth'.format(name, self.num_iters_done)
