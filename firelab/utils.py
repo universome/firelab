@@ -96,3 +96,13 @@ def check_if_oom(e: Exception):
     """Checks if the given exception is cuda OOM"""
     # TODO: is  there a better way for this?
     return "cuda runtime error (2) : out of memory" in str(e)
+
+
+def safe_oom_call(fn, *args, **kwargs):
+    try:
+        fn(*args, **kwargs)
+    except RuntimeError as e:
+        if not check_if_oom(e): raise
+
+        print('Encountered CUDA OOM error in {}. Ignoring it.'.format(fn.__name__))
+        torch.cuda.empty_cache()

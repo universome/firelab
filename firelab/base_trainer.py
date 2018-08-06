@@ -4,7 +4,7 @@ import torch
 from tensorboardX import SummaryWriter
 from tqdm import tqdm
 
-from firelab.utils import cudable, is_history_improving, check_if_oom
+from firelab.utils import cudable, is_history_improving, safe_oom_call
 
 class BaseTrainer:
     def __init__(self, config):
@@ -56,18 +56,11 @@ class BaseTrainer:
         try:
             while not self.should_stop():
                 for batch in tqdm(self.train_dataloader, leave=False):
-                    try:
-                        batch = cudable(batch)
-                        self.train_on_batch(batch)
-                    except RuntimeError as e:
-                        if not check_if_oom(e): raise
-
-                        print('Well, guys, we have encountered a really long batch. Lets just skip it')
-                        torch.cuda.empty_cache()
-
+                    batch = cudable(batch)
+                    safe_oom_call(self.train_on_batch, batch)
                     self.num_iters_done += 1
                     self.log_scores()
-                    self.try_to_validate()
+                    safe_oom_call(self.try_to_validate)
                     self.checkpoint()
                 self.num_epochs_done += 1
         except KeyboardInterrupt:
