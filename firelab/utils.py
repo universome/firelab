@@ -1,4 +1,5 @@
 import os
+import gc
 import shutil
 import subprocess
 import atexit
@@ -20,7 +21,7 @@ def cudable(x):
 
 
 def is_cudable(x):
-    return isinstance(x, torch.Tensor) or isinstance(x, torch.nn.Module)
+    return torch.is_tensor(x) or isinstance(x, torch.nn.Module)
 
 
 def compute_param_by_scheme(scheme:HPLinearScheme, num_iters_done:int):
@@ -95,14 +96,24 @@ def grad_norm(params_gen, p=2):
 def check_if_oom(e: Exception):
     """Checks if the given exception is cuda OOM"""
     # TODO: is  there a better way for this?
-    return "cuda runtime error (2) : out of memory" in str(e)
+    return "out of memory" in str(e)
 
 
-def safe_oom_call(fn, *args, **kwargs):
+def safe_oom_call(fn, *args, debug=False, **kwargs):
     try:
-        fn(*args, **kwargs)
+        return fn(*args, **kwargs)
     except RuntimeError as e:
         if not check_if_oom(e): raise
 
         print('Encountered CUDA OOM error in {}. Ignoring it.'.format(fn.__name__))
         torch.cuda.empty_cache()
+
+        if debug:
+            print_gpu_inhabitants()
+
+
+def print_gpu_inhabitants():
+    print('Here are the guys who can live on GPU')
+    for o in gc.get_objects():
+        if torch.is_tensor(o):
+            print(o.type(), o.size())

@@ -57,19 +57,19 @@ class BaseTrainer:
             while not self.should_stop():
                 for batch in tqdm(self.train_dataloader, leave=False):
                     batch = cudable(batch)
-                    safe_oom_call(self.train_on_batch, batch)
+                    safe_oom_call(self.train_on_batch, batch, debug=self.config.get('debug_gpu'))
+
                     self.num_iters_done += 1
-                    self.log_scores()
-                    safe_oom_call(self.try_to_validate)
+
+                    with torch.no_grad():
+                        safe_oom_call(self.try_to_validate, debug=self.config.get('debug_gpu'))
+
                     self.checkpoint()
                 self.num_epochs_done += 1
         except KeyboardInterrupt:
             print('\nTerminating experiment...')
 
     def train_on_batch(self, batch):
-        pass
-
-    def log_scores(self):
         pass
 
     def try_to_validate(self):
