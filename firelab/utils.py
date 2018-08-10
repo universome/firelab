@@ -68,9 +68,9 @@ def is_history_improving(history, n_steps: int, should_decrease: bool):
     if len(history) < n_steps: return True
 
     if should_decrease:
-        return np.argmin(history[-n_steps:]) == 0
+        return np.argmin(history[-n_steps:]) != 0
     else:
-        return np.argmax(history[-n_steps:]) == 0
+        return np.argmax(history[-n_steps:]) != 0
 
 def run_tensorboard(logdir, port):
     # TODO(universome): well, tensorboard has some kind of python API,
