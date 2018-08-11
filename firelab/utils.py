@@ -10,7 +10,22 @@ import numpy as np
 
 # TODO: check `no_cuda` argument in config
 use_cuda = torch.cuda.is_available()
-HPLinearScheme = namedtuple('HPLinearScheme', ['start_val', 'end_val', 'period'])
+
+
+class HPLinearScheme:
+    """
+    We are increasing param from `start_val` to `end_val` during `period`
+    """
+    def __init__(self, start_val, end_val, period):
+        self.start_val = start_val
+        self.end_val = end_val
+        self.period = period
+
+    def evaluate(self, iteration):
+        if iteration >= self.period:
+            return self.end_val
+        else:
+            return self.start_val + (self.end_val - self.start_val) * iteration / self.period
 
 
 def cudable(x):
@@ -22,20 +37,6 @@ def cudable(x):
 
 def is_cudable(x):
     return torch.is_tensor(x) or isinstance(x, torch.nn.Module)
-
-
-def compute_param_by_scheme(scheme:HPLinearScheme, num_iters_done:int):
-    """
-    :param scheme: we are increasing param from scheme.start_val to scheme.end_val
-                   during scheme.period
-    :param num_iters_done
-    """
-    start_val, end_val, period = scheme
-
-    if num_iters_done >= period:
-        return end_val
-    else:
-        return start_val + (end_val - start_val) * num_iters_done / period
 
 
 def clean_dir(dir, create=True):
