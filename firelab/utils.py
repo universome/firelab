@@ -118,3 +118,20 @@ def print_gpu_inhabitants():
     for o in gc.get_objects():
         if torch.is_tensor(o):
             print(o.type(), o.size())
+
+
+def determine_turn(iteration:int, sequencing:list):
+    """
+    Determines turn for a given sequencing based on current iteration
+    Assumes that iterations starts with 0
+    Useful for turn-based training (for example, GANs)
+    """
+    # We do not care about the past
+    iteration = iteration % sum(sequencing)
+
+    # Let's find whose turn is now
+    for i in range(len(sequencing)):
+        if sum(sequencing[:i]) <= iteration < sum(sequencing[:i+1]):
+            return i
+
+    assert False, "Impossible scenario in determine_turn"
