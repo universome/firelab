@@ -161,3 +161,12 @@ class BaseTrainer:
         module_name = '{}-{}.pth'.format(name, iteration)
         module_path = os.path.join(self.config.firelab.checkpoints_path, module_name)
         module.load_state_dict(torch.load(module_path))
+
+    def write_losses(self, losses: dict):
+        """
+        Iterates over losses and logs them with self.writer
+        Arguments:
+            - losses: dict of losses; each loss should be a scalar
+        """
+        for l in losses:
+            self.writer.add_scalar(l, losses[l], self.num_iters_done)
