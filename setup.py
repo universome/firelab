@@ -14,5 +14,6 @@ setup(
     license='BSD',
     python_requires='>=3.4',
     long_description=open('README.md').read(),
+    install_requires=open('requirements.txt').readlines(),
     zip_safe=True
 )
