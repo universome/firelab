@@ -13,7 +13,6 @@ class BaseTrainer:
         self.num_epochs_done = 0
         self.max_num_epochs = config.get('max_num_epochs')
         self.max_num_iters = config.get('max_num_iters')
-        self.val_freq = config.get('val_freq')
         self.losses = {}
 
         if self.config.get('checkpoint'):
@@ -24,6 +23,14 @@ class BaseTrainer:
         assert not (self.checkpoint_freq_iters and self.checkpoint_freq_epochs), """
             Can't save both on iters and epochs.
             Please, remove either freq_iters or freq_epochs
+        """
+
+        self.val_freq_iters = config.get('val_freq_iters')
+        self.val_freq_epochs = config.get('val_freq_epochs')
+
+        assert not(self.val_freq_iters and self.val_freq_epochs), """
+            Can't validate on both iters and epochs.
+            Please, remove either val_freq_iters or val_freq_epochs
         """
 
         self.train_dataloader = None
@@ -55,7 +62,7 @@ class BaseTrainer:
     def run_training(self):
         try:
             while not self.should_stop():
-                for batch in tqdm(self.train_dataloader, leave=False):
+                for batch in tqdm(self.train_dataloader):
                     batch = cudable(batch)
                     safe_oom_call(self.train_on_batch, batch, debug=self.config.get('debug_gpu'))
 
@@ -73,7 +80,17 @@ class BaseTrainer:
         pass
 
     def try_to_validate(self):
-        if self.val_freq and self.num_iters_done % self.val_freq == 0:
+        should_validate = False
+
+        if self.val_freq_iters:
+            should_validate = self.num_iters_done % self.val_freq_iters == 0
+        elif self.val_freq_epochs:
+            epoch_size = len(self.train_dataloader)
+            was_epoch_just_finished = self.num_iters_done % epoch_size == 0
+            is_epoch_appropriate = self.num_epochs_done % self.val_freq_epochs == 0
+            should_validate = was_epoch_just_finished and is_epoch_appropriate
+
+        if should_validate:
             self.validate()
 
     def validate(self):
