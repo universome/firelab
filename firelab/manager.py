@@ -7,7 +7,7 @@ import yaml
 import numpy
 import torch
 
-from .utils import clean_dir, fix_random_seed, run_tensorboard
+from .utils import clean_dir, fix_random_seed, run_tensorboard, touch_file
 from .config import Config
 
 
@@ -19,12 +19,12 @@ PATH_NOT_EXISTS_ERROR_MSG = ("`{}` directory or file does not exist")
 
 
 def run(cmd, args):
-    config = load_config(args)
-
     if cmd == 'start':
-        start_experiment(config, args)
+        start_experiment(load_config(args), args)
     elif cmd == 'continue':
-        continue_experiment(config, args)
+        continue_experiment(load_config(args), args)
+    elif cmd == 'touch':
+        create_blank_experiment(args)
     elif cmd == 'ls':
         raise NotImplementedError
     else:
@@ -74,18 +74,13 @@ def continue_experiment(config, args):
 
 
 def load_config(args):
-    # TODO: We can't rely on os.getcwd(). How to get project dir properly?
-    experiments_dir = os.path.join(os.getcwd(), "experiments")
     exp_name = args.name # Name of the experiment is the same as config name
-    config_path = os.path.join(experiments_dir, exp_name, "config.yml")
-    logs_path = os.path.join(experiments_dir, exp_name, "logs")
-    checkpoints_path = os.path.join(experiments_dir, exp_name, "checkpoints")
-    summary_path = os.path.join(experiments_dir, exp_name, "summary.md")
+    paths = compute_paths(exp_name)
 
-    if not os.path.isfile(config_path):
-        raise FileNotFoundError(config_path)
+    if not os.path.isfile(paths['config']):
+        raise FileNotFoundError(paths['config'])
 
-    with open(config_path, "r", encoding="utf-8") as config_file:
+    with open(paths['config'], "r", encoding="utf-8") as config_file:
         config = Config(yaml.safe_load(config_file))
 
         # TODO: validate config
@@ -94,11 +89,11 @@ def load_config(args):
         # Let's augment config with some helping stuff
         config.set('firelab', {
             'project_path': os.getcwd(),
+            'experiments_dir': paths['experiments_dir'],
             'name': exp_name,
-            'logs_path': logs_path,
-            'checkpoints_path': checkpoints_path,
-            'experiments_dir': experiments_dir,
-            'summary_path': summary_path,
+            'logs_path': paths['logs'],
+            'checkpoints_path': paths['checkpoints'],
+            'summary_path': paths['summary'],
         })
 
         if config.get('random_seed'):
@@ -121,6 +116,24 @@ def load_config(args):
 
     return config
 
+def get_experiments_dir():
+    # TODO: We can't rely on os.getcwd(). How to get project dir properly?
+    return os.path.join(os.getcwd(), "experiments")
+
+
+def compute_paths(exp_name):
+    "Calculates paths for a given experiment"
+
+    experiments_dir = get_experiments_dir()
+
+    return {
+        'experiments_dir': experiments_dir,
+        'config': os.path.join(experiments_dir, exp_name, "config.yml"),
+        'logs': os.path.join(experiments_dir, exp_name, "logs"),
+        'checkpoints': os.path.join(experiments_dir, exp_name, "checkpoints"),
+        'summary': os.path.join(experiments_dir, exp_name, "summary.md"),
+    }
+
 
 def validate_path_existence(path, should_exist):
     if should_exist and not os.path.exists(path):
@@ -128,3 +141,16 @@ def validate_path_existence(path, should_exist):
 
     if not should_exist and os.path.exists(path):
         raise Exception(PATH_EXISTS_ERROR_MSG.format(path))
+
+
+def create_blank_experiment(args):
+    exp_name = args.name
+    paths = compute_paths(exp_name)
+    exp_dir = os.path.join(paths['experiments_dir'], exp_name)
+    validate_path_existence(exp_dir, False)
+
+    os.mkdir(exp_dir)
+    touch_file(paths['config'])
+    os.mkdir(paths['logs'])
+    os.mkdir(paths['checkpoints'])
+    touch_file(paths['summary'])

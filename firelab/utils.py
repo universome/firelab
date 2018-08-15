@@ -73,6 +73,7 @@ def is_history_improving(history, n_steps: int, should_decrease: bool):
     else:
         return np.argmax(history[-n_steps:]) != 0
 
+
 def run_tensorboard(logdir, port):
     # TODO(universome): well, tensorboard has some kind of python API,
     # but we can't call tb using it, because there are some conflicting
@@ -135,3 +136,7 @@ def determine_turn(iteration:int, sequencing:list):
             return i
 
     assert False, "Impossible scenario in determine_turn"
+
+
+def touch_file(file_path):
+    open(file_path, 'a').close()

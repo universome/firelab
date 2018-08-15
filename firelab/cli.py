@@ -6,15 +6,16 @@ from .manager import run
 def main():
     parser = argparse.ArgumentParser(description='Run project commands')
     subparsers = parser.add_subparsers(dest='command')
-    add_start_parser(subparsers)
-    add_continue_parser(subparsers)
+    extend_with_start_parser(subparsers)
+    extend_with_continue_parser(subparsers)
+    extend_with_touch_parser(subparsers)
     args = parser.parse_args()
 
     run(args.command, args)
 
 
-def add_start_parser(subparsers):
-    """Augments parsers with a parser for `start` command"""
+def extend_with_start_parser(subparsers):
+    "Augments parsers with a parser for `start` command"
     parser = subparsers.add_parser('start')
     parser.add_argument('name', type=str, metavar='name',
         help='Directory name in `experiments` directory. '
@@ -23,9 +24,9 @@ def add_start_parser(subparsers):
     parser.add_argument('--tb-port', type=int, help='Port for tensorboard')
 
 
-def add_continue_parser(subparsers):
+def extend_with_continue_parser(subparsers):
     # TODO: this is a duplication of `start` cmd. How to fix it?
-    """Augments parsers with a parser for `continue` command"""
+    "Augments parsers with a parser for `continue` command"
     parser = subparsers.add_parser('continue')
     parser.add_argument('name', type=str, metavar='name',
         help='Directory name in `experiments` directory. '
@@ -33,6 +34,12 @@ def add_continue_parser(subparsers):
     parser.add_argument('--tb-port', type=int, help='Port for tensorboard')
 
 
-def add_pause_parser(subparsers):
-    """Augments parsers with a parser for `pause` command"""
+def extend_with_touch_parser(subparsers):
+    "Augments parsers with a parser for `touch` command"
+    parser = subparsers.add_parser('touch')
+    parser.add_argument('name', type=str, metavar='name', help='Name of the experiment')
+
+
+def extend_with_pause_parser(subparsers):
+    "Augments parsers with a parser for `pause` command"
     raise NotImplementedError
