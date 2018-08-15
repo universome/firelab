@@ -64,6 +64,8 @@ class BaseTrainer:
             while not self.should_stop():
                 for batch in tqdm(self.train_dataloader):
                     batch = cudable(batch)
+
+                    self.train_mode()
                     safe_oom_call(self.train_on_batch, batch, debug=self.config.get('debug_gpu'))
 
                     self.num_iters_done += 1
@@ -91,6 +93,7 @@ class BaseTrainer:
             should_validate = was_epoch_just_finished and is_epoch_appropriate
 
         if should_validate:
+            self.eval_mode()
             self.validate()
 
     def validate(self):
