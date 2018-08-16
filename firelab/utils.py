@@ -140,3 +140,13 @@ def determine_turn(iteration:int, sequencing:list):
 
 def touch_file(file_path):
     open(file_path, 'a').close()
+
+
+def onehot_encode(x, vocab_size):
+    "One-hot encodes batch of sequences of numbers"
+    assert x.dim() == 2 # batch_size * seq_len
+
+    out = cudable(torch.zeros(x.size(0), x.size(1), vocab_size).long())
+    out = out.scatter_(2, x.unsqueeze(2), 1) # Filling with ones
+
+    return out

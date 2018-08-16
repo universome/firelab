@@ -62,6 +62,7 @@ class BaseTrainer:
     def run_training(self):
         try:
             while not self.should_stop():
+                print('Running epoch #{}'.format(self.num_epochs_done+1))
                 for batch in tqdm(self.train_dataloader):
                     batch = cudable(batch)
 
