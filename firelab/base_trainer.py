@@ -4,7 +4,8 @@ import torch
 from tensorboardX import SummaryWriter
 from tqdm import tqdm
 
-from firelab.utils import cudable, is_history_improving, safe_oom_call
+from firelab.utils.training_utils import is_history_improving, safe_oom_call, cudable
+
 
 class BaseTrainer:
     def __init__(self, config):

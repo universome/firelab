@@ -1,4 +1,4 @@
-from firelab.utils import determine_turn
+from firelab.utils.training_utils import determine_turn
 
 
 def test_determine_turn():

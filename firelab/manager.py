@@ -7,7 +7,8 @@ import yaml
 import numpy
 import torch
 
-from .utils import clean_dir, clean_file, fix_random_seed, run_tensorboard, touch_file
+from .utils.fs_utils import clean_dir, clean_file, touch_file
+from .utils.training_utils import fix_random_seed, run_tensorboard
 from .config import Config
 
 

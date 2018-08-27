@@ -1,15 +1,24 @@
 import os
 import gc
-import shutil
 import subprocess
 import atexit
-from collections import namedtuple
 
 import torch
 import numpy as np
 
+
 # TODO: check `no_cuda` argument in config
 use_cuda = torch.cuda.is_available()
+
+
+def cudable(x):
+    "Transforms torch tensor/module to cuda tensor/module"
+    return x.cuda() if use_cuda and is_cudable(x) else x
+
+
+def is_cudable(x):
+    # return hasattr(x, "cuda") and callable(getattr(x, "cuda"))
+    return torch.is_tensor(x) or isinstance(x, torch.nn.Module)
 
 
 class HPLinearScheme:
@@ -26,37 +35,6 @@ class HPLinearScheme:
             return self.end_val
         else:
             return self.start_val + (self.end_val - self.start_val) * iteration / self.period
-
-
-def cudable(x):
-    "Transforms torch tensor/module to cuda tensor/module"
-    return x.cuda() if use_cuda and is_cudable(x) else x
-
-
-def is_cudable(x):
-    # return hasattr(x, "cuda") and callable(getattr(x, "cuda"))
-    return torch.is_tensor(x) or isinstance(x, torch.nn.Module)
-
-
-def clean_dir(dirpath, create=False):
-    if not os.path.exists(dirpath):
-        if create: os.mkdir(dirpath)
-        return
-
-    for filename in os.listdir(dirpath):
-        filepath = os.path.join(dirpath, filename)
-
-        try:
-            shutil.rmtree(filepath)
-        except OSError:
-            os.remove(filepath)
-
-
-def clean_file(filepath, create=False):
-    if not os.path.exists(filepath):
-        touch_file(filepath)
-    else:
-        open(filepath, 'w').close()
 
 
 def fix_random_seed(seed):
@@ -149,21 +127,3 @@ def determine_turn(iteration:int, sequencing:list):
             return i
 
     assert False, "Impossible scenario in determine_turn"
-
-
-def touch_file(file_path):
-    open(file_path, 'a').close()
-
-
-def onehot_encode(x, vocab_size):
-    "One-hot encodes batch of sequences of numbers"
-    assert x.dim() == 2 # batch_size * seq_len
-
-    out = cudable(torch.zeros(x.size(0), x.size(1), vocab_size).long())
-    out = out.scatter_(2, x.unsqueeze(2), 1) # Filling with ones
-
-    return out
-
-
-def filter_sents_by_len(sents, min_len, max_len):
-    return [s for s in sents if min_len <= len(s.split()) <= max_len]
