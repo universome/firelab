@@ -20,10 +20,15 @@ class BaseTrainer:
             self.checkpoint_freq_epochs = self.config.checkpoint.get('freq_epochs')
             self.checkpoint_list = self.config.modules.models + self.config.modules.optims
 
-        assert not (self.checkpoint_freq_iters and self.checkpoint_freq_epochs), """
-            Can't save both on iters and epochs.
-            Please, remove either freq_iters or freq_epochs
-        """
+            assert not (self.checkpoint_freq_iters and self.checkpoint_freq_epochs), """
+                Can't save both on iters and epochs.
+                Please, remove either freq_iters or freq_epochs
+            """
+        else:
+            # TODO: govnokod :|
+            self.checkpoint_freq_iters = None
+            self.checkpoint_freq_epochs = None
+
 
         self.val_freq_iters = config.get('val_freq_iters')
         self.val_freq_epochs = config.get('val_freq_epochs')
@@ -183,11 +188,11 @@ class BaseTrainer:
         module_path = os.path.join(self.config.firelab.checkpoints_path, module_name)
         module.load_state_dict(torch.load(module_path))
 
-    def write_losses(self, losses: dict):
+    def write_losses(self, losses: dict, prefix=''):
         """
         Iterates over losses and logs them with self.writer
         Arguments:
             - losses: dict of losses; each loss should be a scalar
         """
-        for l in losses:
-            self.writer.add_scalar(l, losses[l], self.num_iters_done)
+        for k in losses:
+            self.writer.add_scalar(prefix + k, losses[k], self.num_iters_done)

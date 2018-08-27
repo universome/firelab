@@ -29,18 +29,17 @@ class HPLinearScheme:
 
 
 def cudable(x):
-    """
-    Transforms torch tensor/module to cuda tensor/module
-    """
+    "Transforms torch tensor/module to cuda tensor/module"
     return x.cuda() if use_cuda and is_cudable(x) else x
 
 
 def is_cudable(x):
+    # return hasattr(x, "cuda") and callable(getattr(x, "cuda"))
     return torch.is_tensor(x) or isinstance(x, torch.nn.Module)
 
 
 def clean_dir(dir, create=True):
-    """Deletes everything inside directory. Creates it if does not exist"""
+    "Deletes everything inside directory. Creates it if does not exist"
     # TODO: Can't tensorboard use only latest log?
     if os.path.exists(dir): shutil.rmtree(dir)
     os.mkdir(dir)
@@ -150,3 +149,7 @@ def onehot_encode(x, vocab_size):
     out = out.scatter_(2, x.unsqueeze(2), 1) # Filling with ones
 
     return out
+
+
+def filter_sents_by_len(sents, min_len, max_len):
+    return [s for s in sents if min_len <= len(s.split()) <= max_len]
