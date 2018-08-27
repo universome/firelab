@@ -7,7 +7,7 @@ import yaml
 import numpy
 import torch
 
-from .utils import clean_dir, fix_random_seed, run_tensorboard, touch_file
+from .utils import clean_dir, clean_file, fix_random_seed, run_tensorboard, touch_file
 from .config import Config
 
 
@@ -25,6 +25,8 @@ def run(cmd, args):
         continue_experiment(load_config(args), args)
     elif cmd == 'touch':
         create_blank_experiment(args)
+    elif cmd == 'clean':
+        clean_experiment(load_config(args), args)
     elif cmd == 'ls':
         raise NotImplementedError
     else:
@@ -47,8 +49,8 @@ def start_experiment(config, args):
 
     # TODO: ensure write access to the directory
     if config.firelab.get('continue_from_iter') is None:
-        clean_dir(config.firelab.checkpoints_path)
-        clean_dir(config.firelab.logs_path)
+        clean_dir(config.firelab.checkpoints_path, create=True)
+        clean_dir(config.firelab.logs_path, create=True)
 
     # TODO: are there any better ways to reach src.trainers?
     sys.path.append(os.getcwd())
@@ -71,6 +73,26 @@ def continue_experiment(config, args):
     print('Latest checkpoint found: {}. Continuing from it.'.format(latest_iter))
     config.firelab.continue_from_iter = latest_iter
     start_experiment(config, args)
+
+
+def create_blank_experiment(args):
+    exp_name = args.name
+    paths = compute_paths(exp_name)
+    exp_dir = os.path.join(paths['experiments_dir'], exp_name)
+    validate_path_existence(exp_dir, False)
+
+    os.mkdir(exp_dir)
+    touch_file(paths['config'])
+    os.mkdir(paths['logs'])
+    os.mkdir(paths['checkpoints'])
+    touch_file(paths['summary'])
+
+
+def clean_experiment(config, args):
+    "Removes logs/ and checkpoints/ content of the experiment"
+    clean_dir(config.firelab.logs_path, create=True)
+    clean_dir(config.firelab.checkpoints_path, create=True)
+    clean_file(config.firelab.summary_path, create=True)
 
 
 def load_config(args):
@@ -141,16 +163,3 @@ def validate_path_existence(path, should_exist):
 
     if not should_exist and os.path.exists(path):
         raise Exception(PATH_EXISTS_ERROR_MSG.format(path))
-
-
-def create_blank_experiment(args):
-    exp_name = args.name
-    paths = compute_paths(exp_name)
-    exp_dir = os.path.join(paths['experiments_dir'], exp_name)
-    validate_path_existence(exp_dir, False)
-
-    os.mkdir(exp_dir)
-    touch_file(paths['config'])
-    os.mkdir(paths['logs'])
-    os.mkdir(paths['checkpoints'])
-    touch_file(paths['summary'])

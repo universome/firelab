@@ -9,6 +9,7 @@ def main():
     extend_with_start_parser(subparsers)
     extend_with_continue_parser(subparsers)
     extend_with_touch_parser(subparsers)
+    extend_with_clean_parser(subparsers)
     args = parser.parse_args()
 
     run(args.command, args)
@@ -38,6 +39,12 @@ def extend_with_touch_parser(subparsers):
     "Augments parsers with a parser for `touch` command"
     parser = subparsers.add_parser('touch')
     parser.add_argument('name', type=str, metavar='name', help='Name of the experiment')
+
+
+def extend_with_clean_parser(subparsers):
+    "Augments parsers with a parser for `clean` command"
+    parser = subparsers.add_parser('clean')
+    parser.add_argument('name', type=str, metavar='name', help='Experiment name')
 
 
 def extend_with_pause_parser(subparsers):
