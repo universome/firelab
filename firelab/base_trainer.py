@@ -1,4 +1,5 @@
 import os
+import pickle
 
 import torch
 from tensorboardX import SummaryWriter
@@ -29,7 +30,6 @@ class BaseTrainer:
             # TODO: govnokod :|
             self.checkpoint_freq_iters = None
             self.checkpoint_freq_epochs = None
-
 
         self.val_freq_iters = config.get('val_freq_iters')
         self.val_freq_epochs = config.get('val_freq_epochs')
@@ -122,6 +122,10 @@ class BaseTrainer:
         for module_name in self.checkpoint_list:
             self.save_module_state(getattr(self, module_name), module_name)
 
+        if self.config.checkpoint.get('pickle'):
+            for attr in self.config.checkpoint.pickle:
+                self.pickle(getattr(self, attr), attr)
+
         self.checkpoint_freq_warning()
 
     def checkpoint_freq_warning(self):
@@ -132,9 +136,7 @@ class BaseTrainer:
         pass
 
     def load_checkpoint(self):
-        """
-        Loads model state from checkpoint if it is provided
-        """
+        "Loads model state from checkpoint if it is provided"
         if self.config.firelab.get('continue_from_iter') is None: return
 
         self.num_iters_done = self.config.firelab.continue_from_iter
@@ -143,8 +145,12 @@ class BaseTrainer:
         for module_name in self.checkpoint_list:
             self.load_module_state(getattr(self, module_name), module_name, self.num_iters_done)
 
+        if self.config.checkpoint.get('pickle'):
+            for module_name in self.config.checkpoint.pickle:
+                self.unpickle(module_name, self.num_iters_done)
+
     def should_stop(self):
-        """Checks all stopping criteria"""
+        "Checks all stopping criteria"
         if self.max_num_iters and self.num_iters_done >= self.max_num_iters:
             print('Terminating experiment because max num iters exceeded')
             return True
@@ -160,7 +166,7 @@ class BaseTrainer:
         return False
 
     def should_early_stop(self):
-        """Checks early stopping criterion"""
+        "Checks early stopping criterion"
         if self.config.get('early_stopping') is None: return False
 
         history = self.losses[self.config.early_stopping.loss]
@@ -170,12 +176,12 @@ class BaseTrainer:
         return not is_history_improving(history, n_steps, should_decrease)
 
     def train_mode(self):
-        """Switches all models into training mode"""
+        "Switches all models into training mode"
         for model_name in self.config.modules.models:
             getattr(self, model_name).train()
 
     def eval_mode(self):
-        """Switches all models into evaluation mode"""
+        "Switches all models into evaluation mode"
         for model_name in self.config.modules.models:
             getattr(self, model_name).eval()
 
@@ -188,6 +194,19 @@ class BaseTrainer:
         module_name = '{}-{}.pth'.format(name, iteration)
         module_path = os.path.join(self.config.firelab.checkpoints_path, module_name)
         module.load_state_dict(torch.load(module_path))
+
+    def pickle(self, module, name):
+        file_name = '{}-{}.pickle'.format(name, self.num_iters_done)
+        path = os.path.join(self.config.firelab.checkpoints_path, file_name)
+        print('Pickling', name, module)
+        print('Vocab', module.vocab)
+        print('Path', path)
+        pickle.dump(module, open(path, 'wb'))
+
+    def unpickle(self, name, iteration):
+        file_name = '{}-{}.pickle'.format(name, iteration)
+        path = os.path.join(self.config.firelab.checkpoints_path, file_name)
+        setattr(self, name, pickle.load(open(path, 'rb')))
 
     def write_losses(self, losses: dict, prefix=''):
         """
