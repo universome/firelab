@@ -37,6 +37,15 @@ class HPLinearScheme:
             return self.start_val + (self.end_val - self.start_val) * iteration / self.period
 
 
+def proportion_coef(x:float, y:float, proportion:float):
+    "On what number should we multiply x to get (proportion * y)?"
+    assert x >= 0
+    assert y >= 0
+    assert 0 <= proportion <= 1
+
+    return y * proportion / x
+
+
 def fix_random_seed(seed):
     import random
     import torch
