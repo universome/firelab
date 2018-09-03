@@ -33,6 +33,10 @@ class Config:
         if type(value) is dict:
             setattr(self, key, Config(value))
         elif type(value) is list or type(value) is tuple:
+            if len(value) == 0:
+                setattr(self, key, tuple())
+                return
+
             assert len(set([type(el) for el in value])) == 1, HOMOGENOUS_ARRAY_MSG
 
             if type(value[0]) is dict:
