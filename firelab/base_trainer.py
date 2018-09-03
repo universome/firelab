@@ -20,7 +20,9 @@ class BaseTrainer:
         if self.config.get('checkpoint'):
             self.checkpoint_freq_iters = self.config.checkpoint.get('freq_iters')
             self.checkpoint_freq_epochs = self.config.checkpoint.get('freq_epochs')
-            self.checkpoint_list = self.config.modules.models + self.config.modules.optims
+            self.checkpoint_list = sum([self.config.modules.get(k) for k in self.config.modules.keys()], tuple())
+
+            print('Will be checkpointing the following modules: {}'.format(self.checkpoint_list))
 
             assert not (self.checkpoint_freq_iters and self.checkpoint_freq_epochs), """
                 Can't save both on iters and epochs.

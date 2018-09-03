@@ -12,6 +12,8 @@ class Config:
     def __init__(self, config):
         assert type(config) is dict
 
+        self._keys = set()
+
         for key in config:
             self.set(key, config[key])
 
@@ -35,20 +37,24 @@ class Config:
         elif type(value) is list or type(value) is tuple:
             if len(value) == 0:
                 setattr(self, key, tuple())
-                return
-
-            assert len(set([type(el) for el in value])) == 1, HOMOGENOUS_ARRAY_MSG
-
-            if type(value[0]) is dict:
-                # TODO: We should check types recursively
-                setattr(self, key, tuple(Config(el) for el in value))
             else:
-                setattr(self, key, tuple(value))
+                assert len(set([type(el) for el in value])) == 1, HOMOGENOUS_ARRAY_MSG
+
+                if type(value[0]) is dict:
+                    # TODO: We should check types recursively
+                    setattr(self, key, tuple(Config(el) for el in value))
+                else:
+                    setattr(self, key, tuple(value))
         elif type(value) in [int, float, str, bool]:
             setattr(self, key, value)
         else:
             raise TypeError("Unsupported type for key {}: {}. "
                             "Value is {}".format(key, type(value), value))
+
+        self._keys.add(key)
+
+    def keys(self):
+        return self._keys
 
     def __setattr__(self, name, value):
         assert not hasattr(self, name), IMMUTABILITY_ERROR_MSG
