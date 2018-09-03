@@ -21,7 +21,7 @@ def is_cudable(x):
     return torch.is_tensor(x) or isinstance(x, torch.nn.Module)
 
 
-class HPLinearScheme:
+class LinearScheme:
     """
     We are increasing param from `start_val` to `end_val` during `period`
     """
@@ -35,6 +35,29 @@ class HPLinearScheme:
             return self.end_val
         else:
             return self.start_val + (self.end_val - self.start_val) * iteration / self.period
+
+
+class PiecewiseLinearScheme:
+    "We apply LinearScheme for each piece"
+    def __init__(self, pieces):
+        self.schemes = [LinearScheme(*p) for p in pieces]
+
+    def scheme_idx_for_iteration(self, iteration):
+        curr_sum = 0
+
+        for i in range(len(self.schemes) - 1):
+            if curr_sum <= iteration <= (curr_sum + self.schemes[i].period):
+                return i
+
+            curr_sum += self.schemes[i].period
+
+        return len(self.schemes) - 1
+
+    def evaluate(self, iteration):
+        scheme_idx = self.scheme_idx_for_iteration(iteration)
+        num_iters_to_ignore = sum([s.period for s in self.schemes[:scheme_idx]])
+
+        return self.schemes[scheme_idx].evaluate(iteration - num_iters_to_ignore)
 
 
 def proportion_coef(x:float, y:float, proportion:float):
