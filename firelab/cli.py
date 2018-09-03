@@ -32,6 +32,8 @@ def extend_with_continue_parser(subparsers):
     parser.add_argument('name', type=str, metavar='name',
         help='Directory name in `experiments` directory. '
         'Must contain config file to run the experiment.')
+    parser.add_argument('--iteration', type=int, metavar='iteration',
+        help='Iteration from which we should continue training.')
     parser.add_argument('--tb-port', type=int, help='Port for tensorboard')
 
 

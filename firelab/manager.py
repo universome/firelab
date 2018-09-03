@@ -35,23 +35,24 @@ def run(cmd, args):
 
 
 def start_experiment(config, args):
-    if config.firelab.get('continue_from_iter') is None:
+    # TODO: ensure write access to the directory
+
+    if not config.firelab.get('continue_from_iter') is None:
         validate_path_existence(config.firelab.logs_path, True)
         validate_path_existence(config.firelab.checkpoints_path, True)
-        # validate_path_existence(config.firelab.summary_path, True)
+        # validate_path_existence(config.firelab.summary_path, True) # TODO
     elif args.overwrite is False:
         validate_path_existence(config.firelab.logs_path, False)
         validate_path_existence(config.firelab.checkpoints_path, False)
         validate_path_existence(config.firelab.summary_path, False)
 
-    if args.tb_port:
-        print('Starting tensorboard on port', args.tb_port)
-        run_tensorboard(config.firelab.logs_path, args.tb_port)
-
-    # TODO: ensure write access to the directory
     if config.firelab.get('continue_from_iter') is None:
         clean_dir(config.firelab.checkpoints_path, create=True)
         clean_dir(config.firelab.logs_path, create=True)
+
+    if args.tb_port:
+        print('Starting tensorboard on port', args.tb_port)
+        run_tensorboard(config.firelab.logs_path, args.tb_port)
 
     # TODO: are there any better ways to reach src.trainers?
     sys.path.append(os.getcwd())
@@ -68,11 +69,15 @@ def continue_experiment(config, args):
     if checkpoints == []:
         raise Exception('Can\'t continue: no checkpoints are available')
 
-    iters = [int(c[:-4].split('-')[-1]) for c in checkpoints]
-    latest_iter = max(iters)
+    if args.iteration is None:
+        iters = [int(c[:-4].split('-')[-1]) for c in checkpoints]
+        iteration = max(iters)
+    else:
+        iteration = args.iteration
 
-    print('Latest checkpoint found: {}. Continuing from it.'.format(latest_iter))
-    config.firelab.continue_from_iter = latest_iter
+    print('Continuing from iteration #{}.'.format(iteration))
+    config.firelab.set('continue_from_iter', iteration)
+
     start_experiment(config, args)
 
 
