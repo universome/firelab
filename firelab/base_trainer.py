@@ -24,6 +24,10 @@ class BaseTrainer:
 
             print('Will be checkpointing the following modules: {}'.format(self.checkpoint_list))
 
+            if self.config.checkpoint.get('pickle'):
+                assert type(self.config.checkpoint.pickle) is tuple
+                print('Will be checkpointing with pickle the following modules: {}'.format(self.config.checkpoint.pickle))
+
             assert not (self.checkpoint_freq_iters and self.checkpoint_freq_epochs), """
                 Can't save both on iters and epochs.
                 Please, remove either freq_iters or freq_epochs
@@ -200,9 +204,6 @@ class BaseTrainer:
     def pickle(self, module, name):
         file_name = '{}-{}.pickle'.format(name, self.num_iters_done)
         path = os.path.join(self.config.firelab.checkpoints_path, file_name)
-        print('Pickling', name, module)
-        print('Vocab', module.vocab)
-        print('Path', path)
         pickle.dump(module, open(path, 'wb'))
 
     def unpickle(self, name, iteration):

@@ -48,7 +48,7 @@ class Config:
         elif type(value) in [int, float, str, bool]:
             setattr(self, key, value)
         else:
-            raise TypeError("Unsupported type for key {}: {}. "
+            raise TypeError("Unsupported type for key \"{}\": {}. "
                             "Value is {}".format(key, type(value), value))
 
         self._keys.add(key)

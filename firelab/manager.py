@@ -70,7 +70,7 @@ def continue_experiment(config, args):
         raise Exception('Can\'t continue: no checkpoints are available')
 
     if args.iteration is None:
-        iters = [int(c[:-4].split('-')[-1]) for c in checkpoints]
+        iters = [int(c.split('.')[0].split('-')[-1]) for c in checkpoints]
         iteration = max(iters)
     else:
         iteration = args.iteration
