@@ -4,6 +4,7 @@ import subprocess
 import atexit
 
 import torch
+from torchtext.data import Batch
 import numpy as np
 
 
@@ -13,7 +14,19 @@ use_cuda = torch.cuda.is_available()
 
 def cudable(x):
     "Transforms torch tensor/module to cuda tensor/module"
-    return x.cuda() if use_cuda and is_cudable(x) else x
+    if not use_cuda: return x
+
+    if hasattr(x, "cuda") and callable(getattr(x, "cuda")):
+        return x.cuda()
+
+    if isinstance(x, Batch):
+        for field in x.fields:
+            setattr(x, field, getattr(x, field).cuda())
+
+        return x
+
+    # Can't detect anything else :|
+    # TODO: torchvision batch?
 
 
 def is_cudable(x):
