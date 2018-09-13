@@ -7,9 +7,8 @@ import yaml
 import numpy
 import torch
 
-from .utils.fs_utils import clean_dir, clean_file, touch_file
+from .utils.fs_utils import clean_dir, clean_file, touch_file, load_config
 from .utils.training_utils import fix_random_seed, run_tensorboard
-from .config import Config
 
 
 # TODO: move error msgs into separate file?
@@ -108,39 +107,38 @@ def load_config(args):
     if not os.path.isfile(paths['config']):
         raise FileNotFoundError(paths['config'])
 
-    with open(paths['config'], "r", encoding="utf-8") as config_file:
-        config = Config(yaml.safe_load(config_file))
+    config = load_config(paths['config'])
 
-        # TODO: validate config
-        assert config.get('firelab') is None
+    # TODO: validate config
+    assert config.get('firelab') is None
 
-        # Let's augment config with some helping stuff
-        config.set('firelab', {
-            'project_path': os.getcwd(),
-            'experiments_dir': paths['experiments_dir'],
-            'name': exp_name,
-            'logs_path': paths['logs'],
-            'checkpoints_path': paths['checkpoints'],
-            'summary_path': paths['summary'],
-        })
+    # Let's augment config with some helping stuff
+    config.set('firelab', {
+        'project_path': os.getcwd(),
+        'experiments_dir': paths['experiments_dir'],
+        'name': exp_name,
+        'logs_path': paths['logs'],
+        'checkpoints_path': paths['checkpoints'],
+        'summary_path': paths['summary'],
+    })
 
-        if config.get('random_seed'):
-            fix_random_seed(config.random_seed)
+    if not config.get('random_seed') is None:
+        fix_random_seed(config.random_seed)
 
-        if config.get('hpo'):
-            # Wow, this gonna be hot
-            # We'll run several experiments on all available GPUs for HPO
+    if config.get('hpo'):
+        # Wow, this gonna be hot
+        # We'll run several experiments on all available GPUs for HPO
 
-            # Let's first generate configs for experiments
+        # Let's first generate configs for experiments
 
-            # Now we are ready to run each experiment individually
-            for gpu_idx in range(torch.cuda.device_count()):
-                # Unfortunately, the only way to specify multiple GPUs
-                # in pytorch is via CUDA_VISIBLE_DEVICES=...
-                # print(gpu_idx)
-                pass
+        # Now we are ready to run each experiment individually
+        for gpu_idx in range(torch.cuda.device_count()):
+            # Unfortunately, the only way to specify multiple GPUs
+            # in pytorch is via CUDA_VISIBLE_DEVICES=...
+            # print(gpu_idx)
+            pass
 
-        # TODO: make config immutable
+    # TODO: make config immutable
 
     return config
 

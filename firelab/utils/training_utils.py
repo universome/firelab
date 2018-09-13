@@ -19,6 +19,7 @@ def cudable(x):
     if hasattr(x, "cuda") and callable(getattr(x, "cuda")):
         return x.cuda()
 
+    # TODO: we should better use device!
     if isinstance(x, Batch):
         for field in x.fields:
             setattr(x, field, getattr(x, field).cuda())
