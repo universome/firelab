@@ -88,10 +88,15 @@ class BaseTrainer:
 
                     self.checkpoint()
                 self.num_epochs_done += 1
+                self.on_epoch_done()
         except KeyboardInterrupt:
             print('\nTerminating experiment...')
 
     def train_on_batch(self, batch):
+        pass
+
+    def on_epoch_done(self):
+        "Callback which is called when epoch has beed done"
         pass
 
     def try_to_validate(self):

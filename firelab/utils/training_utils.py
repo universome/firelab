@@ -29,6 +29,8 @@ def cudable(x):
     # Can't detect anything else :|
     # TODO: torchvision batch?
 
+    # Couldn't transfer it on GPU (or it is not transferable).
+    return x
 
 def is_cudable(x):
     # return hasattr(x, "cuda") and callable(getattr(x, "cuda"))

@@ -20,13 +20,13 @@ PATH_NOT_EXISTS_ERROR_MSG = ("`{}` directory or file does not exist")
 
 def run(cmd, args):
     if cmd == 'start':
-        start_experiment(load_config(args), args)
+        start_experiment(init_config(args), args)
     elif cmd == 'continue':
-        continue_experiment(load_config(args), args)
+        continue_experiment(init_config(args), args)
     elif cmd == 'touch':
         create_blank_experiment(args)
     elif cmd == 'clean':
-        clean_experiment(load_config(args), args)
+        clean_experiment(init_config(args), args)
     elif cmd == 'ls':
         raise NotImplementedError
     else:
@@ -100,7 +100,7 @@ def clean_experiment(config, args):
     clean_file(config.firelab.summary_path, create=True)
 
 
-def load_config(args):
+def init_config(args):
     exp_name = args.name # Name of the experiment is the same as config name
     paths = compute_paths(exp_name)
 
