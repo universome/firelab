@@ -1,7 +1,8 @@
-## firelab (version 0.0.3)
+## firelab (version 0.0.4)
 ### About
 Framework for running DL experiments with pytorch.
 Provides the following useful stuff:
+- parallel hyperparameters optimization
 - allows to `start`/`continue` your experiment with easy commands from yml config file
 - easier to save checkpoints, write logs and visualize training
 - useful utils for HP tuning and working with pytorch (look them up in `utils.py`)
