@@ -51,6 +51,13 @@ class BaseTrainer:
         self.writer = SummaryWriter(config.firelab.logs_path)
 
     def start(self):
+        if len(self.config.available_gpus) > 0:
+            with torch.cuda.device(self.config.available_gpus[0]):
+                self._start()
+        else:
+            self._start()
+
+    def _start(self):
         self.init_dataloaders()
         self.init_models()
         self.init_criterions()

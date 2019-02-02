@@ -221,8 +221,8 @@ def init_config(args):
     config = load_config(paths['config'])
 
     # TODO: Validate all config properties
-    assert not config.has('device'), '''You cannot set `firelab` manually.
-                                        It's internally managed by FireLab framework.'''
+    assert not config.has('firelab'), \
+        'You cannot set `firelab` manually. It is internally managed by FireLab framework.'
 
     # Let's augment config with some helping stuff
     config.set('firelab', {
@@ -239,10 +239,6 @@ def init_config(args):
     else:
         print('Warn: random seed is not set. Consider setting it for reproducibility.')
 
-    assert not config.has('device'), '''You cannot set `device` manually.
-                                        Manage available GPUs via `available_gpus` parameter.'''
-
-
     # Setting available GPUs and proper device
     visible_gpus = list(range(torch.cuda.device_count()))
 
@@ -252,11 +248,6 @@ def init_config(args):
                   'I gonna use them all!' % len(visible_gpus))
 
         config.set('available_gpus', visible_gpus)
-
-    if len(config.available_gpus) > 0:
-        config.set('device', 'cuda:%d' % config.available_gpus[0])
-    else:
-        config.set('device', 'cpu')
 
     # TODO: make config immutable
 
