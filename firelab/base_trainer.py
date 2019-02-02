@@ -150,15 +150,16 @@ class BaseTrainer:
         "Loads model state from checkpoint if it is provided"
         if self.config.firelab.get('continue_from_iter') is None: return
 
-        self.num_iters_done = self.config.firelab.continue_from_iter
-        self.num_epochs_done = self.num_iters_done // len(self.train_dataloader)
+        if not self.config.firelab.reset_iters_counter:
+            self.num_iters_done = self.config.firelab.continue_from_iter
+            self.num_epochs_done = self.num_iters_done // len(self.train_dataloader)
 
         for module_name in self.checkpoint_list:
-            self.load_module_state(getattr(self, module_name), module_name, self.num_iters_done)
+            self.load_module_state(getattr(self, module_name), module_name, self.config.firelab.continue_from_iter)
 
         if self.config.checkpoint.get('pickle'):
             for module_name in self.config.checkpoint.pickle:
-                self.unpickle(module_name, self.num_iters_done)
+                self.unpickle(module_name, self.config.firelab.continue_from_iter)
 
     def should_stop(self):
         "Checks all stopping criteria"
@@ -212,9 +213,13 @@ class BaseTrainer:
         pickle.dump(module, open(path, 'wb'))
 
     def unpickle(self, name, iteration):
+        setattr(self, name, self.read_pickle_module(name, iteration))
+
+    def read_pickle_module(self, name, iteration):
         file_name = '{}-{}.pickle'.format(name, iteration)
         path = os.path.join(self.config.firelab.checkpoints_path, file_name)
-        setattr(self, name, pickle.load(open(path, 'rb')))
+
+        return pickle.load(open(path, 'rb'))
 
     def write_losses(self, losses: dict, prefix=''):
         """

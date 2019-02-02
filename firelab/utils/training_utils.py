@@ -17,12 +17,12 @@ def cudable(x):
     if not use_cuda: return x
 
     if hasattr(x, "cuda") and callable(getattr(x, "cuda")):
-        return x.cuda()
+        return x.to('cuda')
 
     # TODO: we should better use device!
     if isinstance(x, Batch):
         for field in x.fields:
-            setattr(x, field, getattr(x, field).cuda())
+            setattr(x, field, getattr(x, field).to('cuda'))
 
         return x
 
@@ -31,10 +31,6 @@ def cudable(x):
 
     # Couldn't transfer it on GPU (or it is not transferable).
     return x
-
-def is_cudable(x):
-    # return hasattr(x, "cuda") and callable(getattr(x, "cuda"))
-    return torch.is_tensor(x) or isinstance(x, torch.nn.Module)
 
 
 class LinearScheme:

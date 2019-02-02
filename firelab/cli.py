@@ -26,7 +26,6 @@ def extend_with_start_parser(subparsers):
 
 
 def extend_with_continue_parser(subparsers):
-    # TODO: this is a duplication of `start` cmd. How to fix it?
     "Augments parsers with a parser for `continue` command"
     parser = subparsers.add_parser('continue')
     parser.add_argument('name', type=str, metavar='name',
@@ -35,6 +34,9 @@ def extend_with_continue_parser(subparsers):
     parser.add_argument('--iteration', type=int, metavar='iteration',
         help='Iteration from which we should continue training.')
     parser.add_argument('--tb-port', type=int, help='Port for tensorboard')
+    # TODO: looks like we should better keep it in some firelab experiment state
+    parser.add_argument('--reset-iters-counter', action='store_true',
+        help='Should we reset iters counter or recalculate it from dataloader length?')
 
 
 def extend_with_touch_parser(subparsers):

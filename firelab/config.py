@@ -17,7 +17,7 @@ class Config:
         for key in config:
             self.set(key, config[key])
 
-    def get(self, name):
+    def get(self, name: str, default_value=None):
         """
             Safe getter (i.e. returns None instead of
             raising  exception in case of attribute is not set
@@ -25,7 +25,7 @@ class Config:
         if hasattr(self, name):
             return getattr(self, name)
         else:
-            return None
+            return default_value
 
     def set(self, key, value):
         """Setter with some validation"""
@@ -35,6 +35,8 @@ class Config:
         if type(value) is dict:
             setattr(self, key, Config(value))
         elif type(value) is list or type(value) is tuple:
+            # TODO: maybe we should put everything in list? tuples look wierd
+
             if len(value) == 0:
                 setattr(self, key, tuple())
             else:
@@ -56,6 +58,13 @@ class Config:
     def keys(self):
         return self._keys
 
+    def has(self, key):
+        """
+        Checks, if the given key was set
+        (note, that it can be set to None)
+        """
+        return hasattr(self, key)
+
     def __setattr__(self, name, value):
         assert not hasattr(self, name), IMMUTABILITY_ERROR_MSG
 
@@ -64,3 +73,14 @@ class Config:
     def __delattr__(self, name):
         # TODO: not sure if this is the right exception cls :|
         raise PermissionError(IMMUTABILITY_ERROR_MSG)
+
+    def to_dict(self):
+        result = {}
+
+        for key in self.keys():
+            if isinstance(self.get(key), Config):
+                result[key] = self.get(key).to_dict()
+            else:
+                result[key] = self.get(key)
+
+        return result
