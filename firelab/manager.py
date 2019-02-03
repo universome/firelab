@@ -74,15 +74,13 @@ def start_experiment(config, args):
 
 
 def run_hpo(TrainerClass, global_config):
-    configs = spawn_config_for_hpo(global_config)
+    configs = spawn_configs_for_hpo(global_config)
 
     clean_dir(os.path.join(global_config.firelab.experiments_dir, 'summaries'), create=True)
 
-    # TODO: This is unacceptable! Care for situations,
-    # where we have more GPUs than CPUs and
-    # when we use several GPUs per experiment
+    # TODO: Is it ok to assume that we always have more CPUs than concurrent experiments?
     config_groups = group_experiments_by_gpus_used(configs)
-    print('Will be using for HPO %d' % len(config_groups), 'processes')
+    print('Num concurrent experiments to run: %d' % len(config_groups))
 
     processes = []
 
@@ -117,7 +115,7 @@ def group_experiments_by_gpus_used(configs):
     return list(gpus_to_group.values())
 
 
-def spawn_config_for_hpo(config):
+def spawn_configs_for_hpo(config):
     assert config.has('hpo')
 
     if not config.hpo.has('scheme'):
@@ -125,12 +123,12 @@ def spawn_config_for_hpo(config):
         config.hpo.set('scheme', 'grid-search')
 
     if config.hpo.scheme == 'grid-search':
-        return spawn_config_for_grid_search_hpo(config)
+        return spawn_configs_for_grid_search_hpo(config)
     else:
         raise NotImplementedError # TODO
 
 
-def spawn_config_for_grid_search_hpo(config) -> List[Config]:
+def spawn_configs_for_grid_search_hpo(config) -> List[Config]:
     configs = []
     grid_dim_sizes = [len(config.hpo.grid.get(p)) for p in config.hpo.grid.keys()]
     vals_idx = [list(range(n)) for n in grid_dim_sizes]

@@ -99,7 +99,7 @@ class BaseTrainer:
                 self.on_epoch_done()
 
         except KeyboardInterrupt:
-            print('\nTerminating experiment...')
+            print('\nTerminating experiment due to KeyboardInterrupt...')
 
     def train_on_batch(self, batch):
         pass

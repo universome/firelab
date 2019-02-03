@@ -1,5 +1,21 @@
-from firelab.manager import distribute_gpus_for_hpo
 from firelab.config import Config
+from firelab.manager import distribute_gpus_for_hpo, group_experiments_by_gpus_used
+
+
+def test_configs_grouping():
+    assert len(group_experiments_by_gpus_used([ \
+        Config({'available_gpus': [0,1]}), \
+        Config({'available_gpus': [1,2]}), \
+        Config({'available_gpus': [0,1]}), \
+        Config({'available_gpus': [1,2]}), \
+    ])) == 2
+
+    assert len(group_experiments_by_gpus_used([ \
+        Config({'available_gpus': [0,1]}), \
+        Config({'available_gpus': [2,3]}), \
+        Config({'available_gpus': [4,5]}), \
+        Config({'available_gpus': [3,2]}), \
+    ])) == 3
 
 
 def test_gpus_distribution():
