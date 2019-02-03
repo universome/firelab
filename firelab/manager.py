@@ -74,6 +74,10 @@ def start_experiment(config, args):
 
 
 def run_hpo(TrainerClass, global_config):
+    # TODO: actually, we should use GPUs as they are getting free
+    # Fixing all GPUs at once for each experiment is wrong,
+    # because some experiments run MUCH faster than others
+
     configs = spawn_configs_for_hpo(global_config)
 
     clean_dir(os.path.join(global_config.firelab.experiments_dir, 'summaries'), create=True)
@@ -88,8 +92,9 @@ def run_hpo(TrainerClass, global_config):
         process = mp.spawn(hpo_series_runner, args=[TrainerClass, group], join=False)
         processes.append(process)
 
-    for process in processes:
+    for i, process in enumerate(processes):
         process.join()
+        print('HPO series %d finished!' % (i + 1))
 
 
 def hpo_series_runner(process_index:int, TrainerClass:BaseTrainer, configs_group:List[Config]):
@@ -144,6 +149,7 @@ def spawn_configs_for_grid_search_hpo(config) -> List[Config]:
             new_config['hp'][key] = value
 
         new_config['available_gpus'] = gpus_distribution[i]
+        new_config['device_name'] = 'cuda:%d' % gpus_distribution[i][0]
         new_config['firelab']['checkpoints_path'] = os.path.join(new_config['firelab']['checkpoints_path'], 'hpo-experiment-%d' % i)
         new_config['firelab']['logs_path'] = os.path.join(new_config['firelab']['logs_path'], 'hpo-experiment-%d' % i)
         new_config['firelab']['summary_path'] = os.path.join(new_config['firelab']['experiments_dir'], 'summaries/hpo-experiment-%d.md' % i)
