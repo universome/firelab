@@ -155,18 +155,23 @@ def spawn_config_for_grid_search_hpo(config) -> List[Config]:
     return configs
 
 
-def distribute_gpus_for_hpo(num_experiments:int, config:Config):
+def distribute_gpus_for_hpo(num_experiments:int, config:Config) -> List[List[int]]:
     num_gpus_per_experiment = config.hpo.get('num_gpus_per_experiment', 1)
     available_gpus = config.available_gpus
 
     assert len(available_gpus) >= num_gpus_per_experiment, """
         Amount of GPUs you want to allocate for each experiment is not available"""
 
-    if num_gpus_per_experiment > 1:
-        raise NotImplementedError # TODO
+    num_unused_gpus = len(available_gpus) % num_gpus_per_experiment
+    num_concurrent_experiments = (len(available_gpus) - num_unused_gpus) // num_gpus_per_experiment
+    gpu_groups_idx = [list(range(num_gpus_per_experiment * i, num_gpus_per_experiment * i + num_gpus_per_experiment)) for i in range(num_concurrent_experiments)]
+    gpu_groups = [[available_gpus[gpu_i] for gpu_i in group_idx] for group_idx in gpu_groups_idx]
+    distribution = [gpu_groups[i % len(gpu_groups)] for i in range(num_experiments)]
 
-    distribution = (available_gpus * num_experiments)[:num_experiments]
-    distribution = [[gpu] for gpu in distribution]
+    if num_unused_gpus != 0:
+        print('You specified {} GPUs per experiment and {} GPUs are available. ' \
+              'As I am not that smart in GPUs distribution, {} GPUs will be unused :(' \
+              ''.format(num_gpus_per_experiment, len(available_gpus), num_unused_gpus))
 
     return distribution
 
