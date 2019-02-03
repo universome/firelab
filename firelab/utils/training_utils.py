@@ -4,7 +4,6 @@ import subprocess
 import atexit
 
 import torch
-from torchtext.data import Batch
 import numpy as np
 
 
@@ -18,16 +17,6 @@ def cudable(x):
 
     if hasattr(x, "cuda") and callable(getattr(x, "cuda")):
         return x.to('cuda')
-
-    # TODO: we should better use device!
-    if isinstance(x, Batch):
-        for field in x.fields:
-            setattr(x, field, getattr(x, field).to('cuda'))
-
-        return x
-
-    # Can't detect anything else :|
-    # TODO: torchvision batch?
 
     # Couldn't transfer it on GPU (or it is not transferable).
     return x

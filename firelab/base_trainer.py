@@ -5,7 +5,7 @@ import torch
 from tensorboardX import SummaryWriter
 from tqdm import tqdm
 
-from firelab.utils.training_utils import is_history_improving, safe_oom_call, cudable
+from firelab.utils.training_utils import is_history_improving, safe_oom_call
 
 
 class BaseTrainer:
@@ -82,20 +82,22 @@ class BaseTrainer:
         try:
             while not self.should_stop():
                 print('Running epoch #{}'.format(self.num_epochs_done+1))
-                for batch in tqdm(self.train_dataloader):
-                    batch = cudable(batch)
 
+                for batch in tqdm(self.train_dataloader):
                     self.train_mode()
                     safe_oom_call(self.train_on_batch, batch, debug=self.config.get('debug_gpu'))
 
                     self.num_iters_done += 1
 
+                    # Let's validate without grad enabled (less memory consumption)
                     with torch.no_grad():
                         safe_oom_call(self.try_to_validate, debug=self.config.get('debug_gpu'))
 
                     self.checkpoint()
+
                 self.num_epochs_done += 1
                 self.on_epoch_done()
+
         except KeyboardInterrupt:
             print('\nTerminating experiment...')
 

@@ -249,6 +249,14 @@ def init_config(args):
 
         config.set('available_gpus', visible_gpus)
 
+    assert not config.has('device_name'), \
+        'FireLab detects and sets device_name for you. You influence it via `available_gpus`.'
+
+    if len(config.available_gpus) > 0:
+        config.set('device_name', 'cuda:%d' % config.available_gpus[0])
+    else:
+        config.set('device_name', 'cpu')
+
     # TODO: make config immutable
 
     return config
