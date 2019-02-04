@@ -80,7 +80,8 @@ def run_hpo(TrainerClass, global_config):
 
     configs = spawn_configs_for_hpo(global_config)
 
-    clean_dir(os.path.join(global_config.firelab.experiments_dir, 'summaries'), create=True)
+    clean_dir(os.path.join(global_config.firelab.experiments_dir,
+                           global_config.firelab.exp_name, 'summaries'), create=True)
 
     # TODO: Is it ok to assume that we always have more CPUs than concurrent experiments?
     config_groups = group_experiments_by_gpus_used(configs)
@@ -152,7 +153,8 @@ def spawn_configs_for_grid_search_hpo(config) -> List[Config]:
         new_config['device_name'] = 'cuda:%d' % gpus_distribution[i][0]
         new_config['firelab']['checkpoints_path'] = os.path.join(new_config['firelab']['checkpoints_path'], 'hpo-experiment-%d' % i)
         new_config['firelab']['logs_path'] = os.path.join(new_config['firelab']['logs_path'], 'hpo-experiment-%d' % i)
-        new_config['firelab']['summary_path'] = os.path.join(new_config['firelab']['experiments_dir'], 'summaries/hpo-experiment-%d.md' % i)
+        new_config['firelab']['summary_path'] = os.path.join(new_config['firelab']['experiments_dir'], new_config['firelab']['exp_name'], 'summaries/hpo-experiment-%d.yml' % i)
+        new_config['firelab']['exp_subname'] = '{}_hpo-experiment-{}'.format(new_config['firelab']['exp_name'], i)
 
         configs.append(Config(new_config))
 
@@ -168,14 +170,16 @@ def distribute_gpus_for_hpo(num_experiments:int, config:Config) -> List[List[int
 
     num_unused_gpus = len(available_gpus) % num_gpus_per_experiment
     num_concurrent_experiments = (len(available_gpus) - num_unused_gpus) // num_gpus_per_experiment
-    gpu_groups_idx = [list(range(num_gpus_per_experiment * i, num_gpus_per_experiment * i + num_gpus_per_experiment)) for i in range(num_concurrent_experiments)]
+    gpu_groups_idx = [list(range(
+        num_gpus_per_experiment * i, num_gpus_per_experiment * i + num_gpus_per_experiment
+    )) for i in range(num_concurrent_experiments)]
     gpu_groups = [[available_gpus[gpu_i] for gpu_i in group_idx] for group_idx in gpu_groups_idx]
     distribution = [gpu_groups[i % len(gpu_groups)] for i in range(num_experiments)]
 
     if num_unused_gpus != 0:
         print('You specified {} GPUs per experiment and {} GPUs are available. ' \
-              'As I am not that smart in GPUs distribution, {} GPUs will be unused :(' \
-              ''.format(num_gpus_per_experiment, len(available_gpus), num_unused_gpus))
+              'So {} GPUs will be unused :('.format(
+                  num_gpus_per_experiment, len(available_gpus), num_unused_gpus))
 
     return distribution
 
@@ -201,7 +205,7 @@ def continue_experiment(config, args):
 
 
 def create_blank_experiment(args):
-    exp_name = args.name
+    exp_name = args.exp_name
     paths = compute_paths(exp_name)
     exp_dir = os.path.join(paths['experiments_dir'], exp_name)
     validate_path_existence(exp_dir, False)
@@ -221,7 +225,7 @@ def clean_experiment(config, args):
 
 
 def init_config(args):
-    exp_name = args.name # Name of the experiment is the same as config name
+    exp_name = args.exp_name # Name of the experiment is the same as config exp_name
     paths = compute_paths(exp_name)
 
     if not os.path.isfile(paths['config']):
@@ -237,7 +241,7 @@ def init_config(args):
     config.set('firelab', {
         'project_path': os.getcwd(),
         'experiments_dir': paths['experiments_dir'],
-        'name': exp_name,
+        'exp_name': exp_name,
         'logs_path': paths['logs'],
         'checkpoints_path': paths['checkpoints'],
         'summary_path': paths['summary'],
@@ -286,7 +290,7 @@ def compute_paths(exp_name):
         'config': os.path.join(experiments_dir, exp_name, "config.yml"),
         'logs': os.path.join(experiments_dir, exp_name, "logs"),
         'checkpoints': os.path.join(experiments_dir, exp_name, "checkpoints"),
-        'summary': os.path.join(experiments_dir, exp_name, "summary.md"),
+        'summary': os.path.join(experiments_dir, exp_name, "summary.yml"),
     }
 
 

@@ -4,6 +4,7 @@ import pickle
 import torch
 from tensorboardX import SummaryWriter
 from tqdm import tqdm
+import yaml
 
 from firelab.utils.training_utils import is_history_improving, safe_oom_call
 
@@ -97,9 +98,9 @@ class BaseTrainer:
 
                 self.num_epochs_done += 1
                 self.on_epoch_done()
-
-        except KeyboardInterrupt:
-            print('\nTerminating experiment due to KeyboardInterrupt...')
+        except Exception as e:
+            self.write_summary(str(e))
+            raise
 
     def train_on_batch(self, batch):
         pass
@@ -170,18 +171,18 @@ class BaseTrainer:
             for module_name in self.config.checkpoint.pickle:
                 self.unpickle(module_name, self.config.firelab.continue_from_iter)
 
-    def should_stop(self):
+    def should_stop(self) -> bool:
         "Checks all stopping criteria"
         if self.max_num_iters and self.num_iters_done >= self.max_num_iters:
-            print('Terminating experiment because max num iters exceeded')
+            self.write_summary('Max num iters exceeded')
             return True
 
         if self.max_num_epochs and self.num_epochs_done >= self.max_num_epochs:
-            print('Terminating experiment because max num epochs exceeded')
+            self.write_summary('Max num epochs exceeded')
             return True
 
         if self.should_early_stop():
-            print('Terminating experiment due to early stopping')
+            self.write_summary('Early stopping')
             return True
 
         return False
@@ -238,3 +239,17 @@ class BaseTrainer:
         """
         for k in losses:
             self.writer.add_scalar(prefix + k, losses[k], self.num_iters_done)
+
+    def write_summary(self, termination_reason:str):
+        print('Terminating experiment because [%s]' % termination_reason)
+
+        summary = {
+            'name': self.config.firelab.exp_subname,
+            'termination_reason': termination_reason,
+            'num_iters_done': self.num_iters_done,
+            'num_epochs_done': self.num_epochs_done,
+            'config': self.config.to_dict()
+        }
+
+        with open(self.config.firelab.summary_path, 'w') as f:
+            yaml.dump(summary, f, default_flow_style=False)

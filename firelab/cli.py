@@ -18,7 +18,7 @@ def main():
 def extend_with_start_parser(subparsers):
     "Augments parsers with a parser for `start` command"
     parser = subparsers.add_parser('start')
-    parser.add_argument('name', type=str, metavar='name',
+    parser.add_argument('exp_name', type=str, metavar='exp_name',
         help='Directory name in `experiments` directory. '
         'Must contain config file to run the experiment.')
     parser.add_argument('--overwrite', '-o', action='store_true')
@@ -28,7 +28,7 @@ def extend_with_start_parser(subparsers):
 def extend_with_continue_parser(subparsers):
     "Augments parsers with a parser for `continue` command"
     parser = subparsers.add_parser('continue')
-    parser.add_argument('name', type=str, metavar='name',
+    parser.add_argument('exp_name', type=str, metavar='exp_name',
         help='Directory name in `experiments` directory. '
         'Must contain config file to run the experiment.')
     parser.add_argument('--iteration', type=int, metavar='iteration',
@@ -42,13 +42,13 @@ def extend_with_continue_parser(subparsers):
 def extend_with_touch_parser(subparsers):
     "Augments parsers with a parser for `touch` command"
     parser = subparsers.add_parser('touch')
-    parser.add_argument('name', type=str, metavar='name', help='Name of the experiment')
+    parser.add_argument('exp_name', type=str, metavar='exp_name', help='Name of the experiment')
 
 
 def extend_with_clean_parser(subparsers):
     "Augments parsers with a parser for `clean` command"
     parser = subparsers.add_parser('clean')
-    parser.add_argument('name', type=str, metavar='name', help='Experiment name')
+    parser.add_argument('exp_name', type=str, metavar='exp_name', help='Experiment name')
 
 
 def extend_with_pause_parser(subparsers):
