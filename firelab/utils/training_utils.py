@@ -160,3 +160,11 @@ def determine_turn(iteration:int, sequencing:list):
             return i
 
     assert False, "Impossible scenario in determine_turn"
+
+
+def get_module_device(m):
+    try:
+        return next(m.parameters()).device
+    except StopIteration:
+        # TODO: maybe we should fall with error?
+        return torch.device('cpu')
