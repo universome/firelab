@@ -2,9 +2,11 @@ import os
 import sys
 import random
 import signal
+import shutil
 import importlib.util
 from itertools import product
 from typing import List, Iterable
+from datetime import datetime
 
 import yaml
 import numpy
@@ -18,48 +20,56 @@ from .base_trainer import BaseTrainer
 
 
 # TODO: move error msgs into separate file?
-PATH_EXISTS_ERROR_MSG = ("`{}` directory or file already exists: "
-    "have you already run this experiment? "
-    "Provide `--overwrite` option if you want to overwrite the results.")
 PATH_NOT_EXISTS_ERROR_MSG = ("`{}` directory or file does not exist")
 
 
 def run(cmd:str, args):
     if cmd == 'start':
-        start_experiment(init_config(args), args)
+        config = create_new_experiment(args)
+        start_experiment(config)
     elif cmd == 'continue':
-        continue_experiment(init_config(args), args)
-    elif cmd == 'touch':
-        create_blank_experiment(args)
-    elif cmd == 'clean':
-        clean_experiment(init_config(args), args)
+        #continue_experiment(init_config(args), args)
+        raise NotImplementedError
     elif cmd == 'tb':
-        run_tensorboard_for_exp(init_config(args), args)
+        run_tensorboard_for_exp(args)
     elif cmd == 'ls':
         raise NotImplementedError
     else:
         raise NotImplementedError
 
 
-def start_experiment(config, args):
-    # TODO: ensure write access to the directory
+def create_new_experiment(args):
+    # TODO: looks like this lines should not be here
+    config_name = os.path.basename(args.config_path)[:-4]
+    exp_name = config_name + datetime.now().strftime('-%Y-%m-%d_%H-%M-%S')
+    config = init_config(args.config_path, exp_name)
 
+    os.makedirs(config.firelab.logs_path)
+    os.makedirs(config.firelab.checkpoints_path)
+    shutil.copyfile(args.config_path, config.firelab.config_path)
+
+    print('New experiment created at:', os.path.join(config.firelab.experiments_dir, exp_name))
+
+    if args.tb_port:
+        config.firelab.set('tb_port', args.tb_port)
+
+    return config
+
+
+def start_experiment(config):
+    # TODO: ensure write access to the directory
     if not config.firelab.get('continue_from_iter') is None:
         validate_path_existence(config.firelab.logs_path, True)
         validate_path_existence(config.firelab.checkpoints_path, True)
         # validate_path_existence(config.firelab.summary_path, True) # TODO
-    elif args.overwrite is False:
-        validate_path_existence(config.firelab.logs_path, False)
-        validate_path_existence(config.firelab.checkpoints_path, False)
-        validate_path_existence(config.firelab.summary_path, False)
 
     if config.firelab.get('continue_from_iter') is None:
         clean_dir(config.firelab.checkpoints_path, create=True)
         clean_dir(config.firelab.logs_path, create=True)
 
-    if args.tb_port:
-        print('Starting tensorboard on port', args.tb_port)
-        run_tensorboard(config.firelab.logs_path, args.tb_port)
+    if config.firelab.tb_port:
+        print('Starting tensorboard on port', config.firelab.tb_port)
+        run_tensorboard(config.firelab.logs_path, config.firelab.tb_port)
 
     # TODO: are there any better ways to reach src.trainers?
     sys.path.append(os.getcwd())
@@ -191,54 +201,29 @@ def distribute_gpus_for_hpo(num_experiments:int, config:Config) -> List[List[int
     return distribution
 
 
-def continue_experiment(config, args):
-    # Finding latest checkpoint
-    checkpoints = os.listdir(config.firelab.checkpoints_path)
+# def continue_experiment(config, args):
+#     # Finding latest checkpoint
+#     checkpoints = os.listdir(config.firelab.checkpoints_path)
 
-    if checkpoints == []:
-        raise Exception('Can\'t continue: no checkpoints are available')
+#     if checkpoints == []:
+#         raise Exception('Can\'t continue: no checkpoints are available')
 
-    if args.iteration is None:
-        iters = [int(c.split('.')[0].split('-')[-1]) for c in checkpoints]
-        iteration = max(iters)
-    else:
-        iteration = args.iteration
+#     if args.iteration is None:
+#         iters = [int(c.split('.')[0].split('-')[-1]) for c in checkpoints]
+#         iteration = max(iters)
+#     else:
+#         iteration = args.iteration
 
-    print('Continuing from iteration #{}.'.format(iteration))
-    config.firelab.set('continue_from_iter', iteration)
-    config.firelab.set('reset_iters_counter', args.reset_iters_counter)
+#     print('Continuing from iteration #{}.'.format(iteration))
+#     config.firelab.set('continue_from_iter', iteration)
+#     config.firelab.set('reset_iters_counter', args.reset_iters_counter)
 
-    start_experiment(config, args)
+#     start_experiment(config, args)
 
 
-def create_blank_experiment(args):
-    exp_name = args.exp_name
+def init_config(config_path:str, exp_name:str):
     paths = compute_paths(exp_name)
-    exp_dir = os.path.join(paths['experiments_dir'], exp_name)
-    validate_path_existence(exp_dir, False)
-
-    os.mkdir(exp_dir)
-    touch_file(paths['config'])
-    os.mkdir(paths['logs'])
-    os.mkdir(paths['checkpoints'])
-    touch_file(paths['summary'])
-
-
-def clean_experiment(config, args):
-    "Removes logs/ and checkpoints/ content of the experiment"
-    clean_dir(config.firelab.logs_path, create=True)
-    clean_dir(config.firelab.checkpoints_path, create=True)
-    clean_file(config.firelab.summary_path, create=True)
-
-
-def init_config(args):
-    exp_name = args.exp_name # Name of the experiment is the same as config exp_name
-    paths = compute_paths(exp_name)
-
-    if not os.path.isfile(paths['config']):
-        raise FileNotFoundError(paths['config'])
-
-    config = load_config(paths['config'])
+    config = load_config(config_path)
 
     # TODO: Validate all config properties
     assert not config.has('firelab'), \
@@ -246,6 +231,7 @@ def init_config(args):
 
     # Let's augment config with some helping stuff
     config.set('firelab', {
+        'config_path': paths['config'],
         'project_path': os.getcwd(),
         'experiments_dir': paths['experiments_dir'],
         'exp_name': exp_name,
@@ -282,15 +268,11 @@ def init_config(args):
     return config
 
 
-def get_experiments_dir():
-    # TODO: We can't rely on os.getcwd(). How to get project dir properly?
-    return os.path.join(os.getcwd(), "experiments")
-
-
 def compute_paths(exp_name):
     "Calculates paths for a given experiment"
 
-    experiments_dir = get_experiments_dir()
+    # TODO: We can't rely on os.getcwd(). How to get project dir properly?
+    experiments_dir = os.path.join(os.getcwd(), "experiments")
 
     return {
         'experiments_dir': experiments_dir,
@@ -309,6 +291,8 @@ def validate_path_existence(path, should_exist):
         raise Exception(PATH_EXISTS_ERROR_MSG.format(path))
 
 
-def run_tensorboard_for_exp(config, args):
+def run_tensorboard_for_exp(args):
+    config_path = compute_paths(args.exp_name)['config']
+    config = init_config(config_path, args.exp_name)
     run_tensorboard(config.firelab.logs_path, args.tb_port)
     signal.pause()

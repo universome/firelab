@@ -8,8 +8,6 @@ def main():
     subparsers = parser.add_subparsers(dest='command')
     extend_with_start_parser(subparsers)
     extend_with_continue_parser(subparsers)
-    extend_with_touch_parser(subparsers)
-    extend_with_clean_parser(subparsers)
     extend_with_run_tb_parser(subparsers)
     args = parser.parse_args()
 
@@ -19,10 +17,7 @@ def main():
 def extend_with_start_parser(subparsers):
     "Augments parsers with a parser for `start` command"
     parser = subparsers.add_parser('start')
-    parser.add_argument('exp_name', type=str, metavar='exp_name',
-        help='Directory name in `experiments` directory. '
-        'Must contain config file to run the experiment.')
-    parser.add_argument('--overwrite', '-o', action='store_true')
+    parser.add_argument('config_path', type=str, metavar='config_path', help='Path to a config file')
     parser.add_argument('--stay-after-training', '-s', action='store_true') # TODO: rename.
     parser.add_argument('--tb-port', type=int, help='Port for tensorboard')
 
@@ -48,18 +43,6 @@ def extend_with_continue_parser(subparsers):
     # TODO: looks like we should better keep it in some firelab experiment state
     parser.add_argument('--reset-iters-counter', action='store_true',
         help='Should we reset iters counter or recalculate it from dataloader length?')
-
-
-def extend_with_touch_parser(subparsers):
-    "Augments parsers with a parser for `touch` command"
-    parser = subparsers.add_parser('touch')
-    parser.add_argument('exp_name', type=str, metavar='exp_name', help='Name of the experiment')
-
-
-def extend_with_clean_parser(subparsers):
-    "Augments parsers with a parser for `clean` command"
-    parser = subparsers.add_parser('clean')
-    parser.add_argument('exp_name', type=str, metavar='exp_name', help='Experiment name')
 
 
 def extend_with_pause_parser(subparsers):
