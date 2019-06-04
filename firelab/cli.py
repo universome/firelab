@@ -10,6 +10,7 @@ def main():
     extend_with_continue_parser(subparsers)
     extend_with_touch_parser(subparsers)
     extend_with_clean_parser(subparsers)
+    extend_with_run_tb_parser(subparsers)
     args = parser.parse_args()
 
     run(args.command, args)
@@ -22,6 +23,15 @@ def extend_with_start_parser(subparsers):
         help='Directory name in `experiments` directory. '
         'Must contain config file to run the experiment.')
     parser.add_argument('--overwrite', '-o', action='store_true')
+    parser.add_argument('--tb-port', type=int, help='Port for tensorboard')
+
+
+def extend_with_run_tb_parser(subparsers):
+    "Augments parsers with a parser for `tb` command"
+    parser = subparsers.add_parser('tb')
+    parser.add_argument('exp_name', type=str, metavar='exp_name',
+        help='Directory name in `experiments` directory. '
+        'Must contain config file to run the experiment.')
     parser.add_argument('--tb-port', type=int, help='Port for tensorboard')
 
 

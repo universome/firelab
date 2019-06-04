@@ -1,6 +1,7 @@
 import os
 import sys
 import random
+import signal
 import importlib.util
 from itertools import product
 from typing import List, Iterable
@@ -32,6 +33,8 @@ def run(cmd:str, args):
         create_blank_experiment(args)
     elif cmd == 'clean':
         clean_experiment(init_config(args), args)
+    elif cmd == 'tb':
+        run_tensorboard_for_exp(init_config(args), args)
     elif cmd == 'ls':
         raise NotImplementedError
     else:
@@ -154,7 +157,7 @@ def spawn_configs_for_grid_search_hpo(config) -> List[Config]:
         new_config['firelab']['checkpoints_path'] = os.path.join(new_config['firelab']['checkpoints_path'], 'hpo-experiment-%d' % i)
         new_config['firelab']['logs_path'] = os.path.join(new_config['firelab']['logs_path'], 'hpo-experiment-%d' % i)
         new_config['firelab']['summary_path'] = os.path.join(new_config['firelab']['experiments_dir'], new_config['firelab']['exp_name'], 'summaries/hpo-experiment-%d.yml' % i)
-        new_config['firelab']['exp_subname'] = '{}_hpo-experiment-{}'.format(new_config['firelab']['exp_name'], i)
+        new_config['firelab']['exp_name'] = '{}_hpo-experiment-{}'.format(new_config['firelab']['exp_name'], i)
 
         configs.append(Config(new_config))
 
@@ -300,3 +303,8 @@ def validate_path_existence(path, should_exist):
 
     if not should_exist and os.path.exists(path):
         raise Exception(PATH_EXISTS_ERROR_MSG.format(path))
+
+
+def run_tensorboard_for_exp(config, args):
+    run_tensorboard(config.firelab.logs_path, args.tb_port)
+    signal.pause()
