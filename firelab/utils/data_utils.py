@@ -1,8 +1,9 @@
 import torch
+from typing import List
 
 from .training_utils import cudable
 
-
+# TODO: looks like these functions are too specific. Remove them?
 def onehot_encode(x, vocab_size):
     "One-hot encodes batch of sequences of numbers"
     assert x.dim() == 2 # batch_size * seq_len
@@ -13,5 +14,5 @@ def onehot_encode(x, vocab_size):
     return out
 
 
-def filter_sents_by_len(sents, min_len, max_len):
+def filter_sents_by_len(sents:List[str], min_len:int, max_len:int) -> List[str]:
     return [s for s in sents if min_len <= len(s.split()) <= max_len]
