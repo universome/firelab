@@ -75,6 +75,10 @@ def start_experiment(config, args):
         trainer = TrainerClass(config)
         trainer.start()
 
+    if args.stay_after_training:
+        print('Training was finished, but I gonna stay hanging here (because stay_after_training is enabled).')
+        signal.pause()
+
 
 def run_hpo(TrainerClass, global_config):
     # TODO: actually, we should use GPUs as they are getting free

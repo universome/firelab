@@ -23,6 +23,7 @@ def extend_with_start_parser(subparsers):
         help='Directory name in `experiments` directory. '
         'Must contain config file to run the experiment.')
     parser.add_argument('--overwrite', '-o', action='store_true')
+    parser.add_argument('--stay-after-training', '-s', action='store_true') # TODO: rename.
     parser.add_argument('--tb-port', type=int, help='Port for tensorboard')
 
 
