@@ -53,6 +53,9 @@ class BaseTrainer:
 
         self.writer = SummaryWriter(config.firelab.logs_path, flush_secs=5)
 
+        if not (self.max_num_iters or self.max_num_epochs or self.config.has('early_stopping')):
+            print('You did not specify any stopping criteria (max_num_iters, max_num_epochs, early_stopping). I am going to run forever. Huehuehue.')
+
     ############################
     ### Overwritable methods ###
     ############################
