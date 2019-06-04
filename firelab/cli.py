@@ -6,9 +6,12 @@ from .manager import run
 def main():
     parser = argparse.ArgumentParser(description='Run project commands')
     subparsers = parser.add_subparsers(dest='command')
+
     extend_with_start_parser(subparsers)
     extend_with_continue_parser(subparsers)
     extend_with_run_tb_parser(subparsers)
+    extend_with_clean_parser(subparsers)
+
     args = parser.parse_args()
 
     run(args.command, args)
@@ -28,7 +31,7 @@ def extend_with_run_tb_parser(subparsers):
     parser.add_argument('exp_name', type=str, metavar='exp_name',
         help='Directory name in `experiments` directory. '
         'Must contain config file to run the experiment.')
-    parser.add_argument('--tb-port', type=int, help='Port for tensorboard')
+    parser.add_argument('--tb-port', type=int, help='Port for tensorboard', required=True)
 
 
 def extend_with_continue_parser(subparsers):
@@ -48,3 +51,9 @@ def extend_with_continue_parser(subparsers):
 def extend_with_pause_parser(subparsers):
     "Augments parsers with a parser for `pause` command"
     raise NotImplementedError
+
+
+def extend_with_clean_parser(subparsers):
+    parser = subparsers.add_parser('clean')
+    parser.add_argument('prefix', type=str, metavar='prefix',
+        help='Removes all experiments in experiments/ dir with specified prefix')

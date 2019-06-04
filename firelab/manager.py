@@ -26,7 +26,7 @@ PATH_NOT_EXISTS_ERROR_MSG = ("`{}` directory or file does not exist")
 def run(cmd:str, args):
     if cmd == 'start':
         config = create_new_experiment(args)
-        start_experiment(config)
+        start_experiment(config, tb_port=args.tb_port, stay_after_training=args.stay_after_training)
     elif cmd == 'continue':
         #continue_experiment(init_config(args), args)
         raise NotImplementedError
@@ -34,6 +34,8 @@ def run(cmd:str, args):
         run_tensorboard_for_exp(args)
     elif cmd == 'ls':
         raise NotImplementedError
+    elif cmd == 'clean':
+        clean_experiments_by_prefix(args.prefix)
     else:
         raise NotImplementedError
 
@@ -50,13 +52,10 @@ def create_new_experiment(args):
 
     print('New experiment created at:', os.path.join(config.firelab.experiments_dir, exp_name))
 
-    if args.tb_port:
-        config.firelab.set('tb_port', args.tb_port)
-
     return config
 
 
-def start_experiment(config):
+def start_experiment(config, tb_port:int=None, stay_after_training:bool=False):
     # TODO: ensure write access to the directory
     if not config.firelab.get('continue_from_iter') is None:
         validate_path_existence(config.firelab.logs_path, True)
@@ -67,9 +66,9 @@ def start_experiment(config):
         clean_dir(config.firelab.checkpoints_path, create=True)
         clean_dir(config.firelab.logs_path, create=True)
 
-    if config.firelab.tb_port:
-        print('Starting tensorboard on port', config.firelab.tb_port)
-        run_tensorboard(config.firelab.logs_path, config.firelab.tb_port)
+    if tb_port:
+        print('Starting tensorboard on port', tb_port)
+        run_tensorboard(config.firelab.logs_path, tb_port)
 
     # TODO: are there any better ways to reach src.trainers?
     sys.path.append(os.getcwd())
@@ -85,7 +84,7 @@ def start_experiment(config):
         trainer = TrainerClass(config)
         trainer.start()
 
-    if args.stay_after_training:
+    if stay_after_training:
         print('Training was finished, but I gonna stay hanging here (because stay_after_training is enabled).')
         signal.pause()
 
@@ -270,9 +269,7 @@ def init_config(config_path:str, exp_name:str):
 
 def compute_paths(exp_name):
     "Calculates paths for a given experiment"
-
-    # TODO: We can't rely on os.getcwd(). How to get project dir properly?
-    experiments_dir = os.path.join(os.getcwd(), "experiments")
+    experiments_dir = get_experiments_dir()
 
     return {
         'experiments_dir': experiments_dir,
@@ -281,6 +278,10 @@ def compute_paths(exp_name):
         'checkpoints': os.path.join(experiments_dir, exp_name, "checkpoints"),
         'summary': os.path.join(experiments_dir, exp_name, "summary.yml"),
     }
+
+def get_experiments_dir():
+    # TODO: We can't rely on os.getcwd(). How to get project dir properly?
+    return os.path.join(os.getcwd(), "experiments")
 
 
 def validate_path_existence(path, should_exist):
@@ -296,3 +297,15 @@ def run_tensorboard_for_exp(args):
     config = init_config(config_path, args.exp_name)
     run_tensorboard(config.firelab.logs_path, args.tb_port)
     signal.pause()
+
+
+def clean_experiments_by_prefix(prefix:str):
+    experiments_dir = get_experiments_dir()
+
+    for dir in os.listdir(experiments_dir):
+        if dir.startswith(prefix):
+            dir_path = os.path.join(experiments_dir, dir)
+            print('Removing', dir_path)
+            shutil.rmtree(dir_path)
+
+    print('Done')
