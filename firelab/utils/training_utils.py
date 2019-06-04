@@ -164,7 +164,7 @@ def determine_turn(iteration:int, sequencing:list):
 
 def get_module_device(m):
     try:
-        return next(m.parameters()).device
+        return next(iter(m.parameters())).device
     except StopIteration:
         # TODO: maybe we should fall with error?
         return torch.device('cpu')
