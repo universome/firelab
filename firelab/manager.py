@@ -166,7 +166,7 @@ def spawn_configs_for_grid_search_hpo(config) -> List[Config]:
             new_config['hp'][key] = value
 
         new_config['available_gpus'] = gpus_distribution[i]
-        new_config['device_name'] = 'cuda:%d' % gpus_distribution[i][0]
+        new_config['firelab']['device_name'] = 'cuda:%d' % gpus_distribution[i][0]
         new_config['firelab']['checkpoints_path'] = os.path.join(new_config['firelab']['checkpoints_path'], 'hpo-experiment-%d' % i)
         new_config['firelab']['logs_path'] = os.path.join(new_config['firelab']['logs_path'], 'hpo-experiment-%d' % i)
         new_config['firelab']['summary_path'] = os.path.join(new_config['firelab']['experiments_dir'], new_config['firelab']['exp_name'], 'summaries/hpo-experiment-%d.yml' % i)
@@ -258,9 +258,9 @@ def init_config(config_path:str, exp_name:str):
         'FireLab detects and sets device_name for you. You influence it via `available_gpus`.'
 
     if len(config.available_gpus) > 0:
-        config.set('device_name', 'cuda:%d' % config.available_gpus[0])
+        config.firelab.set('device_name', 'cuda:%d' % config.available_gpus[0])
     else:
-        config.set('device_name', 'cpu')
+        config.firelab.set('device_name', 'cpu')
 
     # TODO: make config immutable
 

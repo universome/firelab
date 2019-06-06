@@ -81,6 +81,9 @@ class BaseTrainer:
     def validate(self):
         pass
 
+    def before_start_hook(self):
+        pass
+
     def on_training_done(self):
         pass
 
@@ -107,6 +110,7 @@ class BaseTrainer:
     ### Private methods ###
     #######################
     def _start(self):
+        self.before_start_hook()
         self.init_dataloaders()
         self.init_models()
         self.init_criterions()
