@@ -104,9 +104,10 @@ def run_hpo(TrainerClass, global_config):
     print('Num concurrent experiments to run: %d' % len(config_groups))
 
     processes = []
+    n_parallel_per_gpu:int = global_config.hpo.get('num_parallel_experimens_per_gpu', 1)
 
     for group in config_groups:
-        process = mp.spawn(hpo_series_runner, args=[TrainerClass, group], join=False)
+        process = mp.spawn(hpo_series_runner, args=[TrainerClass, group, n_parallel_per_gpu], join=False)
         processes.append(process)
 
     for i, process in enumerate(processes):
@@ -114,13 +115,27 @@ def run_hpo(TrainerClass, global_config):
         print('HPO series %d finished!' % (i + 1))
 
 
-def hpo_series_runner(process_index:int, TrainerClass:BaseTrainer, configs_group:List[Config]):
-    for config in configs_group:
-        clean_dir(config.firelab.checkpoints_path, create=True)
-        clean_dir(config.firelab.logs_path, create=True)
+def hpo_series_runner(series_index:int, TrainerClass:BaseTrainer, configs_group:List[Config], n_parallel:int=1):
+    parallel_groups = [configs_group[i:i+n_parallel] for i in range(0, len(configs_group), n_parallel)]
 
-        trainer = TrainerClass(config)
-        trainer.start()
+    for group in parallel_groups:
+        parallel_processes = []
+
+        for config in group:
+            process = mp.spawn(run_single_hpo_experiment, args=[TrainerClass, config], join=False)
+            parallel_processes.append(process)
+
+        for i, process in enumerate(parallel_processes):
+            process.join()
+            print('HPO experiment #{} in series #{} finished!'.format(i, series_index))
+
+
+def run_single_hpo_experiment(exp_idx:int, TrainerClass:BaseTrainer, config:Config):
+    clean_dir(config.firelab.checkpoints_path, create=True)
+    clean_dir(config.firelab.logs_path, create=True)
+
+    trainer = TrainerClass(config)
+    trainer.start()
 
 
 def group_experiments_by_gpus_used(configs):
