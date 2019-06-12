@@ -138,6 +138,9 @@ class BaseTrainer:
 
                     self._checkpoint()
 
+                    if self._should_stop():
+                        break
+
                 self.num_epochs_done += 1
                 self.on_epoch_done()
         except Exception as e:
@@ -206,11 +209,11 @@ class BaseTrainer:
 
     def _should_stop(self) -> bool:
         "Checks all stopping criteria"
-        if self.max_num_iters and self.num_iters_done >= self.max_num_iters:
+        if (not self.max_num_iters is None) and (self.num_iters_done >= self.max_num_iters):
             self._write_summary('Max num iters exceeded')
             return True
 
-        if self.max_num_epochs and self.num_epochs_done >= self.max_num_epochs:
+        if (not self.max_num_epochs is None) and (self.num_epochs_done >= self.max_num_epochs):
             self._write_summary('Max num epochs exceeded')
             return True
 
