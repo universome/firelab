@@ -161,6 +161,8 @@ def spawn_configs_for_hpo(config):
 
     if config.hpo.scheme == 'grid-search':
         return spawn_configs_for_grid_search_hpo(config)
+    if config.hpo.scheme == 'random-search':
+        return spawn_configs_for_random_search_hpo(config)
     else:
         raise NotImplementedError # TODO
 
@@ -189,6 +191,13 @@ def spawn_configs_for_grid_search_hpo(config) -> List[Config]:
         new_config['firelab']['config_path'] = os.path.join(new_config['firelab']['experiments_dir'], 'configs/hpo-experiment-%d.yml' % i)
 
         configs.append(Config(new_config))
+
+    return configs
+
+
+def spawn_configs_for_random_search_hpo(config:Config) -> List[Config]:
+    configs = spawn_configs_for_grid_search_hpo(config)
+    configs = random.sample(configs, config.hpo.num_experiments)
 
     return configs
 
