@@ -104,7 +104,7 @@ def run_hpo(TrainerClass, global_config):
     print('Num concurrent experiments to run: %d' % len(config_groups))
 
     processes = []
-    n_parallel_per_gpu:int = global_config.hpo.get('num_parallel_experimens_per_gpu', 1)
+    n_parallel_per_gpu:int = global_config.hpo.get('num_parallel_experiments_per_gpu', 1)
 
     for group in config_groups:
         process = mp.spawn(hpo_series_runner, args=[TrainerClass, group, n_parallel_per_gpu], join=False)
