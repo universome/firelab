@@ -54,6 +54,7 @@ def extend_with_pause_parser(subparsers):
 
 
 def extend_with_clean_parser(subparsers):
+    # TODO: clean by time
     parser = subparsers.add_parser('clean')
     parser.add_argument('prefix', type=str, metavar='prefix',
         help='Removes all experiments in experiments/ dir with specified prefix')
