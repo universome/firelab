@@ -186,9 +186,9 @@ def spawn_configs_for_grid_search_hpo(config) -> List[Config]:
         new_config['firelab']['device_name'] = 'cuda:%d' % gpus_distribution[i][0]
         new_config['firelab']['checkpoints_path'] = os.path.join(new_config['firelab']['checkpoints_path'], 'hpo-experiment-%d' % i)
         new_config['firelab']['logs_path'] = os.path.join(new_config['firelab']['logs_path'], 'hpo-experiment-%d' % i)
-        new_config['firelab']['summary_path'] = os.path.join(new_config['firelab']['experiments_dir'], 'summaries/hpo-experiment-%d.yml' % i)
+        new_config['firelab']['summary_path'] = os.path.join(new_config['firelab']['experiments_dir'], new_config['firelab']['exp_name'], 'summaries/hpo-experiment-%d.yml' % i)
         new_config['firelab']['exp_name'] = '{}_hpo-experiment-{}'.format(new_config['firelab']['exp_name'], i)
-        new_config['firelab']['config_path'] = os.path.join(new_config['firelab']['experiments_dir'], 'configs/hpo-experiment-%d.yml' % i)
+        new_config['firelab']['config_path'] = os.path.join(new_config['firelab']['experiments_dir'], new_config['firelab']['exp_name'], 'configs/hpo-experiment-%d.yml' % i)
 
         configs.append(Config(new_config))
 
