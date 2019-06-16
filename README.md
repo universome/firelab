@@ -12,6 +12,12 @@ Provides the following useful stuff:
 pip install firelab
 ```
 
+### TODO
+- daemon
+- `firelab ls`
+- easier profiling (via contexts?)
+- there are some interseting features in https://github.com/vpj/lab
+
 ### Useful commands:
 - `firelab ls` — lists all running experiments
 - `firelab start` / `firelab stop` / `firelab pause` / `firelab continue` — starts/stops/pauses/continues experiments
