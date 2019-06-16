@@ -3,6 +3,7 @@ import sys
 import random
 import signal
 import shutil
+import logging
 import importlib.util
 from itertools import product
 from typing import List, Iterable
@@ -12,6 +13,7 @@ import yaml
 import numpy
 import torch
 import torch.multiprocessing as mp
+import coloredlogs
 
 from .config import Config
 from .utils.fs_utils import clean_dir, clean_file, touch_file, load_config
@@ -21,7 +23,8 @@ from .base_trainer import BaseTrainer
 
 # TODO: move error msgs into separate file?
 PATH_NOT_EXISTS_ERROR_MSG = ("`{}` directory or file does not exist")
-
+logger = logging.getLogger(__name__)
+coloredlogs.install(level="DEBUG", logger=logger)
 
 def run(cmd:str, args):
     if cmd == 'start':
@@ -50,7 +53,7 @@ def create_new_experiment(args):
     os.makedirs(config.firelab.checkpoints_path)
     shutil.copyfile(args.config_path, config.firelab.config_path)
 
-    print('New experiment created at:', os.path.join(config.firelab.experiments_dir, exp_name))
+    logger.info(f'New experiment created at: {os.path.join(config.firelab.experiments_dir, exp_name)}')
 
     return config
 
@@ -67,7 +70,7 @@ def start_experiment(config, tb_port:int=None, stay_after_training:bool=False):
         clean_dir(config.firelab.logs_path, create=True)
 
     if tb_port:
-        print('Starting tensorboard on port', tb_port)
+        logger.info(f'Starting tensorboard on port {tb_port}')
         run_tensorboard(config.firelab.logs_path, tb_port)
 
     # TODO: are there any better ways to reach src.trainers?
@@ -85,7 +88,7 @@ def start_experiment(config, tb_port:int=None, stay_after_training:bool=False):
         trainer.start()
 
     if stay_after_training:
-        print('Training was finished, but I gonna stay hanging here (because stay_after_training is enabled).')
+        logger.info('Training was finished, but I gonna stay hanging here (because stay_after_training is enabled).')
         signal.pause()
 
 
@@ -101,7 +104,7 @@ def run_hpo(TrainerClass, global_config):
 
     # TODO: Is it ok to assume that we always have more CPUs than concurrent experiments?
     config_groups = group_experiments_by_gpus_used(configs)
-    print('Num concurrent experiments to run: %d' % len(config_groups))
+    logger.info(f'Num concurrent experiments to run: {len(config_groups)}')
 
     processes = []
     n_parallel_per_gpu:int = global_config.hpo.get('num_parallel_experiments_per_gpu', 1)
@@ -112,7 +115,7 @@ def run_hpo(TrainerClass, global_config):
 
     for i, process in enumerate(processes):
         process.join()
-        print('HPO series %d finished!' % (i + 1))
+        logger.info(f'HPO series {(i+1)} finished!')
 
 
 def hpo_series_runner(series_index:int, TrainerClass:BaseTrainer, configs_group:List[Config], n_parallel:int=1):
@@ -127,7 +130,7 @@ def hpo_series_runner(series_index:int, TrainerClass:BaseTrainer, configs_group:
 
         for i, process in enumerate(parallel_processes):
             process.join()
-            print('HPO experiment #{} in series #{} finished!'.format(i, series_index))
+            logger.info(f'HPO experiment #{i} in series #{series_index} finished!')
 
 
 def run_single_hpo_experiment(exp_idx:int, TrainerClass:BaseTrainer, config:Config):
@@ -156,7 +159,7 @@ def spawn_configs_for_hpo(config):
     assert config.has('hpo')
 
     if not config.hpo.has('scheme'):
-        print('Scheme for HPO is not specified. Gonna use grid search')
+        logger.info('Scheme for HPO is not specified. Gonna use grid search')
         config.hpo.set('scheme', 'grid-search')
 
     if config.hpo.scheme == 'grid-search':
@@ -196,6 +199,8 @@ def spawn_configs_for_grid_search_hpo(config) -> List[Config]:
 
 
 def spawn_configs_for_random_search_hpo(config:Config) -> List[Config]:
+    raise NotImplementedError # TODO: improper GPU distribution
+
     configs = spawn_configs_for_grid_search_hpo(config)
     configs = random.sample(configs, config.hpo.num_experiments)
 
@@ -218,9 +223,8 @@ def distribute_gpus_for_hpo(num_experiments:int, config:Config) -> List[List[int
     distribution = [gpu_groups[i % len(gpu_groups)] for i in range(num_experiments)]
 
     if num_unused_gpus != 0:
-        print('You specified {} GPUs per experiment and {} GPUs are available. ' \
-              'So {} GPUs will be unused :('.format(
-                  num_gpus_per_experiment, len(available_gpus), num_unused_gpus))
+        logger.info(f'You specified {num_gpus_per_experiment} GPUs per experiment ' \
+             f'and {len(available_gpus)} GPUs are available. So {num_unused_gpus} GPUs will be unused :(')
 
     return distribution
 
@@ -238,7 +242,7 @@ def distribute_gpus_for_hpo(num_experiments:int, config:Config) -> List[List[int
 #     else:
 #         iteration = args.iteration
 
-#     print('Continuing from iteration #{}.'.format(iteration))
+#     logger.info('Continuing from iteration #{}.'.format(iteration))
 #     config.firelab.set('continue_from_iter', iteration)
 #     config.firelab.set('reset_iters_counter', args.reset_iters_counter)
 
@@ -267,15 +271,15 @@ def init_config(config_path:str, exp_name:str):
     if config.has('random_seed'):
         fix_random_seed(config.random_seed)
     else:
-        print('Warn: random seed is not set. Consider setting it for reproducibility.')
+        logger.info('Warn: random seed is not set. Consider setting it for reproducibility.')
 
     # Setting available GPUs and proper device
     visible_gpus = list(range(torch.cuda.device_count()))
 
     if not config.has('available_gpus'):
         if len(visible_gpus) > 0:
-            print('Found %d GPUs, but `available_gpus` parameter is not set. '\
-                  'I gonna use them all!' % len(visible_gpus))
+            logger.info(f'Found {len(visible_gpus)} GPUs, but `available_gpus` parameter is not set. '\
+                  'I gonna use them all!')
 
         config.set('available_gpus', visible_gpus)
 
@@ -330,7 +334,7 @@ def clean_experiments_by_prefix(prefix:str):
     for dir in os.listdir(experiments_dir):
         if dir.startswith(prefix):
             dir_path = os.path.join(experiments_dir, dir)
-            print('Removing', dir_path)
+            logger.info(f'Removing {dir_path}')
             shutil.rmtree(dir_path)
 
-    print('Done')
+    logger.info('Done')

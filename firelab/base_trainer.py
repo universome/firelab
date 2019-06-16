@@ -1,10 +1,13 @@
 import os
 import pickle
+import logging
 
+import yaml
 import torch
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
-import yaml
+import coloredlogs
+
 
 from firelab.utils.training_utils import is_history_improving, safe_oom_call
 
@@ -19,17 +22,20 @@ class BaseTrainer:
         self.max_num_epochs = config.get('max_num_epochs')
         self.max_num_iters = config.get('max_num_iters')
         self.losses = {}
+        self.logger = logging.getLogger(self.config.firelab.exp_name)
+
+        coloredlogs.install(level=self.config.get('logging.level', 'DEBUG'), logger=self.logger)
 
         if self.config.get('checkpoint'):
             self.checkpoint_freq_iters = self.config.checkpoint.get('freq_iters')
             self.checkpoint_freq_epochs = self.config.checkpoint.get('freq_epochs')
             self.checkpoint_list = sum([self.config.modules.get(k) for k in self.config.modules.keys()], tuple())
 
-            print('Will be checkpointing the following modules: {}'.format(self.checkpoint_list))
+            self.logger.info('Will be checkpointing the following modules: {}'.format(self.checkpoint_list))
 
             if self.config.checkpoint.get('pickle'):
                 assert type(self.config.checkpoint.pickle) is tuple
-                print('Will be checkpointing with pickle the following modules: {}'.format(self.config.checkpoint.pickle))
+                self.logger.info('Will be checkpointing with pickle the following modules: {}'.format(self.config.checkpoint.pickle))
 
             assert not (self.checkpoint_freq_iters and self.checkpoint_freq_epochs), """
                 Can't save both on iters and epochs.
@@ -54,7 +60,7 @@ class BaseTrainer:
         self.writer = SummaryWriter(config.firelab.logs_path, flush_secs=5)
 
         if not (self.max_num_iters or self.max_num_epochs or self.config.has('early_stopping')):
-            print('You did not specify any stopping criteria (max_num_iters, max_num_epochs, early_stopping). I am going to run forever. Huehuehue.')
+            self.logger.warn('You did not specify any stopping criteria (max_num_iters, max_num_epochs, early_stopping). I am going to run forever. Huehuehue.')
 
     ############################
     ### Overwritable methods ###
@@ -128,17 +134,17 @@ class BaseTrainer:
     def _run_training(self):
         try:
             while not self._should_stop():
-                print('Running epoch #{}'.format(self.num_epochs_done+1))
+                self.logger.info('Running epoch #{}'.format(self.num_epochs_done+1))
 
-                for batch in tqdm(self.train_dataloader):
-                    self._train_mode()
-                    safe_oom_call(self.train_on_batch, batch, debug=self.config.get('debug_gpu'))
+                for batch in self._get_train_dataloader():
+                    self._set_train_mode()
+                    safe_oom_call(self.train_on_batch, self.logger, batch, debug=self.config.get('debug_gpu'))
 
                     self.num_iters_done += 1
 
                     # Let's validate without grad enabled (less memory consumption)
                     with torch.no_grad():
-                        safe_oom_call(self._try_to_validate, debug=self.config.get('debug_gpu'))
+                        safe_oom_call(self._try_to_validate, self.logger, debug=self.config.get('debug_gpu'))
 
                     self._checkpoint()
 
@@ -150,6 +156,12 @@ class BaseTrainer:
         except Exception as e:
             self._write_summary(str(e))
             raise
+
+    def _get_train_dataloader(self):
+        if self.config.get('training_tqdm', True):
+            return tqdm(self.train_dataloader)
+        else:
+            return self.train_dataloader
 
     def _try_to_validate(self):
         should_validate = False
@@ -163,7 +175,7 @@ class BaseTrainer:
             should_validate = was_epoch_just_finished and is_epoch_appropriate
 
         if should_validate:
-            self._eval_mode()
+            self._set_eval_mode()
             self.validate()
 
 
@@ -238,23 +250,18 @@ class BaseTrainer:
         return not is_history_improving(history, n_steps, should_decrease)
 
     # TODO: we can gather modules automaticall (via "isinstance")
-    def _train_mode(self):
+    def _set_train_mode(self, flag:bool=True):
         "Switches all models into training mode"
 
         if not self.config.has('modules'): return
         if not self.config.modules.has('models'): return
 
         for model_name in self.config.modules.models:
-            getattr(self, model_name).train()
+            getattr(self, model_name).train(flag)
 
-    def _eval_mode(self):
+    def _set_eval_mode(self):
         "Switches all models into evaluation mode"
-
-        if not self.config.has('modules'): return
-        if not self.config.modules.has('models'): return
-
-        for model_name in self.config.modules.models:
-            getattr(self, model_name).eval()
+        self._set_train_mode(False)
 
     def _save_module_state(self, module, name):
         module_name = '{}-{}.pt'.format(name, self.num_iters_done)
@@ -281,7 +288,7 @@ class BaseTrainer:
         return pickle.load(open(path, 'rb'))
 
     def _write_summary(self, termination_reason:str):
-        print('Terminating experiment because [%s]' % termination_reason)
+        self.logger.info('Terminating experiment because [%s]' % termination_reason)
 
         summary = {
             'name': self.config.firelab.exp_name,

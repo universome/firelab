@@ -125,24 +125,25 @@ def check_if_oom(e: Exception):
     return "out of memory" in str(e)
 
 
-def safe_oom_call(fn, *args, debug=False, **kwargs):
+def safe_oom_call(fn, logger, *args, debug=False, **kwargs):
     try:
         return fn(*args, **kwargs)
     except RuntimeError as e:
         if not check_if_oom(e): raise
 
-        print('Encountered CUDA OOM error in {}. Ignoring it.'.format(fn.__name__))
+        logger.error('Encountered CUDA OOM error in {}. Ignoring it.'.format(fn.__name__))
         torch.cuda.empty_cache()
 
         if debug:
-            print_gpu_inhabitants()
+            print_gpu_inhabitants(logger)
 
 
-def print_gpu_inhabitants():
-    print('Here are the guys who can live on GPU')
+def print_gpu_inhabitants(logger):
+    logger.info('Here are the guys who can live on GPU')
+
     for o in gc.get_objects():
         if torch.is_tensor(o):
-            print(o.type(), o.size())
+            logger.info(o.type(), o.size())
 
 
 def determine_turn(iteration:int, sequencing:list):
