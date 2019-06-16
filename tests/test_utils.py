@@ -34,4 +34,4 @@ def test_get_model_device():
     # TODO: didn't find a way to simulate GPU,
     # so let's at least add a conditional test...
     if torch.cuda.is_available():
-        assert get_module_device(nn.Linear(5, 5).to('cuda')) == torch.device('cuda')
+        assert get_module_device(nn.Linear(5, 5).to('cuda')) == torch.device('cuda:0')
