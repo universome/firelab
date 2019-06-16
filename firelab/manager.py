@@ -104,6 +104,8 @@ def run_hpo(TrainerClass, global_config):
 
     # TODO: Is it ok to assume that we always have more CPUs than concurrent experiments?
     config_groups = group_experiments_by_gpus_used(configs)
+
+    # TODO: This logging information is not correct, because we can have several experiments on one GPU
     logger.info(f'Num concurrent experiments to run: {len(config_groups)}')
 
     processes = []
@@ -171,11 +173,23 @@ def spawn_configs_for_hpo(config):
 
 
 def spawn_configs_for_grid_search_hpo(config) -> List[Config]:
+    experiments_vals_idx = compute_hpo_vals_idx(config.hpo.grid)
+    gpus_distribution = distribute_gpus_for_hpo(len(experiments_vals_idx), config)
+    configs = create_hpo_configs(config, experiments_vals_idx, gpus_distribution)
+
+    return configs
+
+
+def spawn_configs_for_random_search_hpo(config:Config) -> List[Config]:
+    experiments_vals_idx = random.sample(compute_hpo_vals_idx(config.hpo.grid), config.hpo.num_experiments)
+    gpus_distribution = distribute_gpus_for_hpo(len(experiments_vals_idx), config)
+    configs = create_hpo_configs(config, experiments_vals_idx, gpus_distribution)
+
+    return configs
+
+
+def create_hpo_configs(config:Config, idx_list:List[List[int]], gpus_distribution:List[List[int]]) -> List[Config]:
     configs = []
-    grid_dim_sizes = [len(config.hpo.grid.get(p)) for p in config.hpo.grid.keys()]
-    vals_idx = [list(range(n)) for n in grid_dim_sizes]
-    idx_list = list(product(*vals_idx))
-    gpus_distribution = distribute_gpus_for_hpo(len(idx_list), config)
 
     for i, idx in enumerate(idx_list):
         values = [config.hpo.grid.get(p)[i] for p, i in zip(config.hpo.grid.keys(), idx)]
@@ -186,26 +200,24 @@ def spawn_configs_for_grid_search_hpo(config) -> List[Config]:
             new_config['hp'][key] = value
 
         new_config['available_gpus'] = gpus_distribution[i]
-        new_config['firelab']['device_name'] = 'cuda:%d' % gpus_distribution[i][0]
-        new_config['firelab']['checkpoints_path'] = os.path.join(new_config['firelab']['checkpoints_path'], 'hpo-experiment-%d' % i)
-        new_config['firelab']['logs_path'] = os.path.join(new_config['firelab']['logs_path'], 'hpo-experiment-%d' % i)
-        new_config['firelab']['summary_path'] = os.path.join(new_config['firelab']['experiments_dir'], new_config['firelab']['exp_name'], 'summaries/hpo-experiment-%d.yml' % i)
-        new_config['firelab']['exp_name'] = '{}_hpo-experiment-{}'.format(new_config['firelab']['exp_name'], i)
-        new_config['firelab']['config_path'] = os.path.join(new_config['firelab']['experiments_dir'], new_config['firelab']['exp_name'], 'configs/hpo-experiment-%d.yml' % i)
+        new_config['firelab']['device_name'] = f'cuda:{gpus_distribution[i][0]}'
+        new_config['firelab']['checkpoints_path'] = os.path.join(new_config['firelab']['checkpoints_path'], f'hpo-experiment-{i:03d}')
+        new_config['firelab']['logs_path'] = os.path.join(new_config['firelab']['logs_path'], f'hpo-experiment-{i}')
+        new_config['firelab']['summary_path'] = os.path.join(new_config['firelab']['experiments_dir'], new_config['firelab']['exp_name'], f'summaries/hpo-experiment-{i:03d}.yml')
+        new_config['firelab']['exp_name'] = f"{new_config['firelab']['exp_name']}_hpo-experiment-{i:03d}"
+        new_config['firelab']['config_path'] = os.path.join(new_config['firelab']['experiments_dir'], new_config['firelab']['exp_name'], f'configs/hpo-experiment-{i:03d}.yml')
 
         configs.append(Config(new_config))
 
     return configs
 
 
-def spawn_configs_for_random_search_hpo(config:Config) -> List[Config]:
-    raise NotImplementedError # TODO: improper GPU distribution
+def compute_hpo_vals_idx(hpo_grid:Config) -> List[List[int]]:
+    grid_dim_sizes = [len(hpo_grid.get(p)) for p in hpo_grid.keys()]
+    vals_idx = [list(range(n)) for n in grid_dim_sizes]
+    experiments_vals_idx = list(product(*vals_idx))
 
-    configs = spawn_configs_for_grid_search_hpo(config)
-    configs = random.sample(configs, config.hpo.num_experiments)
-
-    return configs
-
+    return experiments_vals_idx
 
 def distribute_gpus_for_hpo(num_experiments:int, config:Config) -> List[List[int]]:
     num_gpus_per_experiment = config.hpo.get('num_gpus_per_experiment', 1)
