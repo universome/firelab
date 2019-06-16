@@ -17,15 +17,36 @@ class Config:
         for key in config:
             self.set(key, config[key])
 
-    def get(self, name: str, default_value=None):
+    def get(self, attr_path:str, default_value=None):
         """
             Safe getter (i.e. returns None instead of
             raising  exception in case of attribute is not set
+
+            Usage:
+                - Config({}).get("a") # => None
+                - Config({"a": 2}).get("a") # => 2
+                - Config({"a": 2}).get("a", 3) # => 3
+                - Config({"a": {"b": 4}}).get("a.b") # => 4
+                - Config({"a": {"b": 4}}).get("a.c", 5) # => 5
         """
-        if hasattr(self, name):
-            return getattr(self, name)
-        else:
-            return default_value
+        curr_config = self
+        attrs = attr_path.split('.')
+
+        for attr_name in attrs:
+
+            if hasattr(curr_config, attr_name):
+                value = getattr(curr_config, attr_name)
+
+                if attr_name == attrs[-1]:
+                    return value
+                elif isinstance(value, Config):
+                    curr_config = value
+                else:
+                    break
+            else:
+                break
+
+        return default_value
 
     def set(self, key, value):
         """Setter with some validation"""
