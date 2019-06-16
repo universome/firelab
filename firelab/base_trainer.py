@@ -87,13 +87,19 @@ class BaseTrainer:
     def validate(self):
         pass
 
+    #############
+    ### Hooks ###
+    #############
     def before_init_hook(self):
         pass
 
-    def before_training_start_hook(self):
+    def after_init_hook(self):
         pass
 
-    def on_training_done(self):
+    def before_training_hook(self):
+        pass
+
+    def after_training_hook(self):
         pass
 
     ######################
@@ -119,24 +125,32 @@ class BaseTrainer:
     ### Private methods ###
     #######################
     def _start(self):
+        # Initialization
         self.before_init_hook()
         self.init_dataloaders()
         self.init_models()
         self.init_criterions()
         self.init_optimizers()
         self._try_to_load_checkpoint()
+        self.after_init_hook()
 
-        self.before_training_start_hook()
+        # Training
+        self.before_training_hook()
         self._run_training()
-        self.on_training_done()
+        self.after_training_hook()
         self.writer.close()
 
     def _run_training(self):
         try:
             while not self._should_stop():
-                self.logger.info('Running epoch #{}'.format(self.num_epochs_done+1))
+                if self.config.get('logging.training_progress', True):
+                    batches = tqdm(self.train_dataloader)
 
-                for batch in self._get_train_dataloader():
+                    self.logger.info('Running epoch #{}'.format(self.num_epochs_done+1))
+                else:
+                    batches = self.train_dataloader
+
+                for batch in batches:
                     self._set_train_mode()
                     safe_oom_call(self.train_on_batch, self.logger, batch, debug=self.config.get('debug_gpu'))
 
@@ -156,12 +170,6 @@ class BaseTrainer:
         except Exception as e:
             self._write_summary(str(e))
             raise
-
-    def _get_train_dataloader(self):
-        if self.config.get('training_tqdm', True):
-            return tqdm(self.train_dataloader)
-        else:
-            return self.train_dataloader
 
     def _try_to_validate(self):
         should_validate = False
