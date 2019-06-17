@@ -6,6 +6,10 @@ import yaml
 from ..config import Config
 
 
+# TODO: move error msgs into separate file?
+PATH_NOT_EXISTS_ERROR_MSG = ("`{}` directory or file does not exist")
+
+
 def clean_dir(dirpath, create=False):
     if not os.path.exists(dirpath):
         if create: os.mkdir(dirpath)
@@ -36,3 +40,11 @@ def load_config(config_path):
         config = Config(yaml.safe_load(config_file))
 
     return config
+
+
+def validate_path_existence(path, should_exist):
+    if should_exist and not os.path.exists(path):
+        raise Exception(PATH_NOT_EXISTS_ERROR_MSG.format(path))
+
+    if not should_exist and os.path.exists(path):
+        raise Exception(f"Path {path} already exists")

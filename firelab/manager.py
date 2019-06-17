@@ -5,26 +5,24 @@ import signal
 import shutil
 import logging
 import importlib.util
-from itertools import product
 from typing import List, Iterable
 from datetime import datetime
 
-import yaml
 import numpy
 import torch
 import torch.multiprocessing as mp
 import coloredlogs
 
 from .config import Config
-from .utils.fs_utils import clean_dir, clean_file, touch_file, load_config
+from .utils.fs_utils import clean_dir, clean_file, touch_file, load_config, validate_path_existence
 from .utils.training_utils import fix_random_seed, run_tensorboard
 from .base_trainer import BaseTrainer
+from .hpo import spawn_configs_for_hpo
 
 
-# TODO: move error msgs into separate file?
-PATH_NOT_EXISTS_ERROR_MSG = ("`{}` directory or file does not exist")
 logger = logging.getLogger(__name__)
 coloredlogs.install(level="DEBUG", logger=logger)
+
 
 def run(cmd:str, args):
     if cmd == 'start':
@@ -105,8 +103,7 @@ def run_hpo(TrainerClass, global_config):
     # TODO: Is it ok to assume that we always have more CPUs than concurrent experiments?
     config_groups = group_experiments_by_gpus_used(configs)
 
-    # TODO: This logging information is not correct, because we can have several experiments on one GPU
-    logger.info(f'Num concurrent experiments to run: {len(config_groups)}')
+    logger.info(f'Num concurrent HPO series to run: {len(config_groups)}')
 
     processes = []
     n_parallel_per_gpu:int = global_config.hpo.get('num_parallel_experiments_per_gpu', 1)
@@ -155,90 +152,6 @@ def group_experiments_by_gpus_used(configs):
         gpus_to_group[gpus].append(config)
 
     return list(gpus_to_group.values())
-
-
-def spawn_configs_for_hpo(config):
-    assert config.has('hpo')
-
-    if not config.hpo.has('scheme'):
-        logger.info('Scheme for HPO is not specified. Gonna use grid search')
-        config.hpo.set('scheme', 'grid-search')
-
-    if config.hpo.scheme == 'grid-search':
-        return spawn_configs_for_grid_search_hpo(config)
-    if config.hpo.scheme == 'random-search':
-        return spawn_configs_for_random_search_hpo(config)
-    else:
-        raise NotImplementedError # TODO
-
-
-def spawn_configs_for_grid_search_hpo(config) -> List[Config]:
-    experiments_vals_idx = compute_hpo_vals_idx(config.hpo.grid)
-    gpus_distribution = distribute_gpus_for_hpo(len(experiments_vals_idx), config)
-    configs = create_hpo_configs(config, experiments_vals_idx, gpus_distribution)
-
-    return configs
-
-
-def spawn_configs_for_random_search_hpo(config:Config) -> List[Config]:
-    experiments_vals_idx = random.sample(compute_hpo_vals_idx(config.hpo.grid), config.hpo.num_experiments)
-    gpus_distribution = distribute_gpus_for_hpo(len(experiments_vals_idx), config)
-    configs = create_hpo_configs(config, experiments_vals_idx, gpus_distribution)
-
-    return configs
-
-
-def create_hpo_configs(config:Config, idx_list:List[List[int]], gpus_distribution:List[List[int]]) -> List[Config]:
-    configs = []
-
-    for i, idx in enumerate(idx_list):
-        values = [config.hpo.grid.get(p)[i] for p, i in zip(config.hpo.grid.keys(), idx)]
-        new_config = config.to_dict()
-        new_config.pop('hpo')
-
-        for key, value in zip(config.hpo.grid.keys(), values):
-            new_config['hp'][key] = value
-
-        new_config['available_gpus'] = gpus_distribution[i]
-        new_config['firelab']['device_name'] = f'cuda:{gpus_distribution[i][0]}'
-        new_config['firelab']['checkpoints_path'] = os.path.join(new_config['firelab']['checkpoints_path'], f'hpo-experiment-{i:03d}')
-        new_config['firelab']['logs_path'] = os.path.join(new_config['firelab']['logs_path'], f'hpo-experiment-{i}')
-        new_config['firelab']['summary_path'] = os.path.join(new_config['firelab']['experiments_dir'], new_config['firelab']['exp_name'], f'summaries/hpo-experiment-{i:03d}.yml')
-        new_config['firelab']['exp_name'] = f"{new_config['firelab']['exp_name']}_hpo-experiment-{i:03d}"
-        new_config['firelab']['config_path'] = os.path.join(new_config['firelab']['experiments_dir'], new_config['firelab']['exp_name'], f'configs/hpo-experiment-{i:03d}.yml')
-
-        configs.append(Config(new_config))
-
-    return configs
-
-
-def compute_hpo_vals_idx(hpo_grid:Config) -> List[List[int]]:
-    grid_dim_sizes = [len(hpo_grid.get(p)) for p in hpo_grid.keys()]
-    vals_idx = [list(range(n)) for n in grid_dim_sizes]
-    experiments_vals_idx = list(product(*vals_idx))
-
-    return experiments_vals_idx
-
-def distribute_gpus_for_hpo(num_experiments:int, config:Config) -> List[List[int]]:
-    num_gpus_per_experiment = config.hpo.get('num_gpus_per_experiment', 1)
-    available_gpus = config.available_gpus
-
-    assert len(available_gpus) >= num_gpus_per_experiment, """
-        Amount of GPUs you want to allocate for each experiment is not available"""
-
-    num_unused_gpus = len(available_gpus) % num_gpus_per_experiment
-    num_concurrent_experiments = (len(available_gpus) - num_unused_gpus) // num_gpus_per_experiment
-    gpu_groups_idx = [list(range(
-        num_gpus_per_experiment * i, num_gpus_per_experiment * i + num_gpus_per_experiment
-    )) for i in range(num_concurrent_experiments)]
-    gpu_groups = [[available_gpus[gpu_i] for gpu_i in group_idx] for group_idx in gpu_groups_idx]
-    distribution = [gpu_groups[i % len(gpu_groups)] for i in range(num_experiments)]
-
-    if num_unused_gpus != 0:
-        logger.info(f'You specified {num_gpus_per_experiment} GPUs per experiment ' \
-             f'and {len(available_gpus)} GPUs are available. So {num_unused_gpus} GPUs will be unused :(')
-
-    return distribution
 
 
 # def continue_experiment(config, args):
@@ -320,17 +233,10 @@ def compute_paths(exp_name):
         'summary': os.path.join(experiments_dir, exp_name, "summary.yml"),
     }
 
+
 def get_experiments_dir():
     # TODO: We can't rely on os.getcwd(). How to get project dir properly?
     return os.path.join(os.getcwd(), "experiments")
-
-
-def validate_path_existence(path, should_exist):
-    if should_exist and not os.path.exists(path):
-        raise Exception(PATH_NOT_EXISTS_ERROR_MSG.format(path))
-
-    if not should_exist and os.path.exists(path):
-        raise Exception(PATH_EXISTS_ERROR_MSG.format(path))
 
 
 def run_tensorboard_for_exp(args):
