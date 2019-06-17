@@ -25,7 +25,7 @@ def spawn_configs_for_hpo(config):
     if config.hpo.scheme == 'random-search':
         return spawn_configs_for_random_search_hpo(config)
     else:
-        raise NotImplementedError # TODO
+        raise NotImplementedError(f'HPO scheme {config.hpo.scheme} is not supported. Use grid-search or random-search, please.')
 
 
 def spawn_configs_for_grid_search_hpo(config) -> List[Config]:

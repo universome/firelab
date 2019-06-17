@@ -23,6 +23,7 @@ class BaseTrainer:
         self.max_num_iters = config.get('max_num_iters')
         self.losses = {}
         self.logger = logging.getLogger(self.config.firelab.exp_name)
+        self.is_explicitly_stopped = False
 
         coloredlogs.install(level=self.config.get('logging.level', 'DEBUG'), logger=self.logger)
 
@@ -111,6 +112,9 @@ class BaseTrainer:
                 self._start()
         else:
             self._start()
+
+    def stop(self):
+        self.is_explicitly_stopped = True
 
     def write_losses(self, losses: dict, prefix=''):
         """
@@ -243,6 +247,10 @@ class BaseTrainer:
 
         if self._should_early_stop():
             self._write_summary('Early stopping')
+            return True
+
+        if self.is_explicitly_stopped:
+            self._write_summary('Stopped explicitly via .stop() method')
             return True
 
         return False

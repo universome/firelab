@@ -17,6 +17,10 @@ pip install firelab
 - `firelab ls`
 - easier profiling (via contexts?)
 - there are some interseting features in https://github.com/vpj/lab
+- add commit hash to summary
+- create new branch/commit for each experiment?
+- move HPO logic out from manager
+- more meaningful error messages
 
 ### Useful commands:
 - `firelab ls` — lists all running experiments
