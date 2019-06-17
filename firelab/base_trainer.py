@@ -107,8 +107,8 @@ class BaseTrainer:
     ### Public methods ###
     ######################
     def start(self):
-        if len(self.config.available_gpus) > 0:
-            with torch.cuda.device(self.config.available_gpus[0]):
+        if len(self.config.firelab.available_gpus) > 0:
+            with torch.cuda.device(self.config.firelab.available_gpus[0]):
                 self._start()
         else:
             self._start()

@@ -5,7 +5,7 @@ import signal
 import shutil
 import logging
 import importlib.util
-from typing import List, Iterable
+from typing import List, Iterable, Tuple
 from datetime import datetime
 
 import numpy
@@ -20,6 +20,7 @@ from .base_trainer import BaseTrainer
 from .hpo import spawn_configs_for_hpo
 
 
+torch.multiprocessing.set_start_method("spawn", force=True)
 logger = logging.getLogger(__name__)
 coloredlogs.install(level="DEBUG", logger=logger)
 
@@ -91,67 +92,62 @@ def start_experiment(config, tb_port:int=None, stay_after_training:bool=False):
 
 
 def run_hpo(TrainerClass, global_config):
-    # TODO: actually, we should use GPUs as they are getting free
-    # Fixing all GPUs at once for each experiment is wrong,
-    # because some experiments run MUCH faster than others
-
+    # TODO: Is it ok to assume that we always have more CPUs than concurrent experiments?
     configs = spawn_configs_for_hpo(global_config)
-
     clean_dir(os.path.join(global_config.firelab.experiments_dir,
                            global_config.firelab.exp_name, 'summaries'), create=True)
 
-    # TODO: Is it ok to assume that we always have more CPUs than concurrent experiments?
-    config_groups = group_experiments_by_gpus_used(configs)
+    n_parallel = global_config.hpo.get('num_parallel_experiments_per_gpu', 1) \
+               * (len(global_config.firelab.available_gpus) \
+               // global_config.hpo.get('num_gpus_per_experiment', 1))
 
-    logger.info(f'Num concurrent HPO series to run: {len(config_groups)}')
+    logger.info(f'Num concurrent HPO experiments to run: {n_parallel}')
 
-    processes = []
-    n_parallel_per_gpu:int = global_config.hpo.get('num_parallel_experiments_per_gpu', 1)
+    # gpus_usage = mp.Array('i', [0, 1, 2])
+    gpus_usage = mp.Manager().list([0, 0, 0])
+    available_gpus:Tuple[int] = tuple(global_config.firelab.available_gpus)
 
-    for group in config_groups:
-        process = mp.spawn(hpo_series_runner, args=[TrainerClass, group, n_parallel_per_gpu], join=False)
-        processes.append(process)
+    with mp.Pool(n_parallel) as pool:
+        for config in configs:
+            args = [
+                TrainerClass,
+                config,
+                global_config.hpo.get('num_gpus_per_experiment', 1),
+                global_config.hpo.get('num_parallel_experiments_per_gpu', 1),
+                gpus_usage,
+                available_gpus
+            ]
 
-    for i, process in enumerate(processes):
-        process.join()
-        logger.info(f'HPO series {(i+1)} finished!')
+            pool.apply_async(run_single_hpo_experiment, args=args)
 
-
-def hpo_series_runner(series_index:int, TrainerClass:BaseTrainer, configs_group:List[Config], n_parallel:int=1):
-    parallel_groups = [configs_group[i:i+n_parallel] for i in range(0, len(configs_group), n_parallel)]
-
-    for group in parallel_groups:
-        parallel_processes = []
-
-        for config in group:
-            process = mp.spawn(run_single_hpo_experiment, args=[TrainerClass, config], join=False)
-            parallel_processes.append(process)
-
-        for i, process in enumerate(parallel_processes):
-            process.join()
-            logger.info(f'HPO experiment #{i} in series #{series_index} finished!')
+        pool.close()
+        pool.join()
 
 
-def run_single_hpo_experiment(exp_idx:int, TrainerClass:BaseTrainer, config:Config):
+def run_single_hpo_experiment(TrainerClass:BaseTrainer, config:Config, n_gpus_required:int,
+                              n_experiments_per_gpu:int, gpus_usage:mp.Manager, available_gpus:Tuple[int]):
+
+    free_gpus_idx = [i for i, _ in enumerate(available_gpus) if gpus_usage[i] < n_experiments_per_gpu]
+    gpus_idx_to_take = free_gpus_idx[:n_gpus_required]
+    gpus_to_take = [available_gpus[i] for i in gpus_idx_to_take]
+
+    print(f'GPUs usage: {gpus_usage}. GPUs to take: {gpus_to_take}.')
+
+    # Taking GPUs
+    for gpu_idx in gpus_idx_to_take:
+        gpus_usage[gpu_idx] += 1
+
+    config.firelab.set('available_gpus', gpus_to_take)
+    config.firelab.set('device_name', f'cuda:{gpus_to_take[0]}')
+
     clean_dir(config.firelab.checkpoints_path, create=True)
     clean_dir(config.firelab.logs_path, create=True)
-
     trainer = TrainerClass(config)
     trainer.start()
 
-
-def group_experiments_by_gpus_used(configs):
-    gpus_to_group = {}
-
-    for config in configs:
-        gpus = tuple(sorted(config.available_gpus))
-
-        if not gpus in gpus_to_group:
-            gpus_to_group[gpus] = []
-
-        gpus_to_group[gpus].append(config)
-
-    return list(gpus_to_group.values())
+    # Releasing GPUs
+    for gpu_idx in gpus_idx_to_take:
+        gpus_usage[gpu_idx] -= 1
 
 
 # def continue_experiment(config, args):
@@ -206,13 +202,15 @@ def init_config(config_path:str, exp_name:str):
             logger.info(f'Found {len(visible_gpus)} GPUs, but `available_gpus` parameter is not set. '\
                   'I gonna use them all!')
 
-        config.set('available_gpus', visible_gpus)
+        config.firelab.set('available_gpus', visible_gpus)
+    else:
+        config.firelab.set('available_gpus', [gpu for gpu in config.available_gpus])
 
     assert not config.has('device_name'), \
         'FireLab detects and sets device_name for you. You influence it via `available_gpus`.'
 
-    if len(config.available_gpus) > 0:
-        config.firelab.set('device_name', 'cuda:%d' % config.available_gpus[0])
+    if len(config.firelab.available_gpus) > 0:
+        config.firelab.set('device_name', 'cuda:%d' % config.firelab.available_gpus[0])
     else:
         config.firelab.set('device_name', 'cpu')
 
