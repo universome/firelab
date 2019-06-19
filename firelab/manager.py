@@ -4,6 +4,7 @@ import random
 import signal
 import shutil
 import logging
+import traceback
 import importlib.util
 from typing import List, Iterable, Tuple
 from datetime import datetime
@@ -103,9 +104,9 @@ def run_hpo(TrainerClass, global_config):
 
     logger.info(f'Num concurrent HPO experiments to run: {n_parallel}')
 
-    # gpus_usage = mp.Array('i', [0, 1, 2])
-    gpus_usage = mp.Manager().list([0, 0, 0])
     available_gpus:Tuple[int] = tuple(global_config.firelab.available_gpus)
+    gpus_usage = mp.Manager().list([0] * len(available_gpus))
+    # results = []
 
     with mp.Pool(n_parallel) as pool:
         for config in configs:
@@ -119,8 +120,13 @@ def run_hpo(TrainerClass, global_config):
             ]
 
             pool.apply_async(run_single_hpo_experiment, args=args)
+            # results.append(pool.apply_async(run_single_hpo_experiment, args=args))
 
         pool.close()
+
+        # for result in results:
+        #     result.get()
+
         pool.join()
 
 
@@ -131,7 +137,7 @@ def run_single_hpo_experiment(TrainerClass:BaseTrainer, config:Config, n_gpus_re
     gpus_idx_to_take = free_gpus_idx[:n_gpus_required]
     gpus_to_take = [available_gpus[i] for i in gpus_idx_to_take]
 
-    print(f'GPUs usage: {gpus_usage}. GPUs to take: {gpus_to_take}.')
+    logger.info(f'[{config.firelab.exp_name}] GPUs usage: {gpus_usage}. GPUs to take: {gpus_to_take}.')
 
     # Taking GPUs
     for gpu_idx in gpus_idx_to_take:
@@ -142,12 +148,18 @@ def run_single_hpo_experiment(TrainerClass:BaseTrainer, config:Config, n_gpus_re
 
     clean_dir(config.firelab.checkpoints_path, create=True)
     clean_dir(config.firelab.logs_path, create=True)
-    trainer = TrainerClass(config)
-    trainer.start()
 
-    # Releasing GPUs
-    for gpu_idx in gpus_idx_to_take:
-        gpus_usage[gpu_idx] -= 1
+    try:
+        trainer = TrainerClass(config)
+        trainer.start()
+    except Exception as e:
+        logger.error(f"Exception occured: {e}")
+        traceback.print_tb(e.__traceback__)
+        raise
+    finally:
+        # Releasing GPUs
+        for gpu_idx in gpus_idx_to_take:
+            gpus_usage[gpu_idx] -= 1
 
 
 # def continue_experiment(config, args):

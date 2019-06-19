@@ -113,8 +113,9 @@ class BaseTrainer:
         else:
             self._start()
 
-    def stop(self):
+    def stop(self, stopping_reason:str=''):
         self.is_explicitly_stopped = True
+        self._explicit_stopping_reason = stopping_reason
 
     def write_losses(self, losses: dict, prefix=''):
         """
@@ -250,7 +251,7 @@ class BaseTrainer:
             return True
 
         if self.is_explicitly_stopped:
-            self._write_summary('Stopped explicitly via .stop() method')
+            self._write_summary(f'Stopped explicitly via .stop() method. Reason: {self._explicit_stopping_reason}')
             return True
 
         return False
