@@ -75,9 +75,10 @@ def fix_random_seed(seed):
     import torch
     import numpy
 
-    torch.manual_seed(seed)
-    numpy.random.seed(seed)
     random.seed(seed)
+    numpy.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
 
 
 def is_history_improving(history, n_steps: int, should_decrease: bool):
