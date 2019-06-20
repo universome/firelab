@@ -153,8 +153,8 @@ def run_single_hpo_experiment(TrainerClass:BaseTrainer, config:Config, n_gpus_re
         trainer = TrainerClass(config)
         trainer.start()
     except Exception as e:
-        logger.error(f"Exception occured: {e}")
         traceback.print_tb(e.__traceback__)
+        logger.error(f"{e}")
         raise
     finally:
         # Releasing GPUs

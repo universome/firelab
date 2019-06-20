@@ -55,6 +55,8 @@ class Config:
 
         if type(value) is dict:
             setattr(self, key, Config(value))
+        elif type(value) is Config:
+            setattr(self, key, Config(value.to_dict()))
         elif type(value) is list or type(value) is tuple:
             # TODO: maybe we should put everything in list? tuples look wierd
 
