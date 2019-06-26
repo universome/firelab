@@ -6,12 +6,13 @@ import shutil
 import logging
 import traceback
 import importlib.util
+from concurrent.futures import ProcessPoolExecutor, wait
+from torch.multiprocessing import Manager
 from typing import List, Iterable, Tuple
 from datetime import datetime
 
 import numpy
 import torch
-import torch.multiprocessing as mp
 import coloredlogs
 
 from .config import Config
@@ -19,7 +20,6 @@ from .utils.fs_utils import clean_dir, clean_file, touch_file, load_config, vali
 from .utils.training_utils import fix_random_seed, run_tensorboard
 from .base_trainer import BaseTrainer
 from .hpo import spawn_configs_for_hpo
-
 
 torch.multiprocessing.set_start_method("spawn", force=True)
 logger = logging.getLogger(__name__)
@@ -105,10 +105,10 @@ def run_hpo(TrainerClass, global_config):
     logger.info(f'Num concurrent HPO experiments to run: {n_parallel}')
 
     available_gpus:Tuple[int] = tuple(global_config.firelab.available_gpus)
-    gpus_usage = mp.Manager().list([0] * len(available_gpus))
-    # results = []
+    gpus_usage = Manager().list([0] * len(available_gpus))
+    futures = []
 
-    with mp.Pool(n_parallel) as pool:
+    with ProcessPoolExecutor(n_parallel) as executor:
         for config in configs:
             args = [
                 TrainerClass,
@@ -119,14 +119,14 @@ def run_hpo(TrainerClass, global_config):
                 available_gpus
             ]
 
-            pool.apply_async(run_single_hpo_experiment, args=args)
+            future = executor.submit(run_single_hpo_experiment, *args)
+            futures.append(future)
 
-        pool.close()
-        pool.join()
+        wait(futures)
 
 
 def run_single_hpo_experiment(TrainerClass:BaseTrainer, config:Config, n_gpus_required:int,
-                              n_experiments_per_gpu:int, gpus_usage:mp.Manager, available_gpus:Tuple[int]):
+                              n_experiments_per_gpu:int, gpus_usage:Manager, available_gpus:Tuple[int]):
 
     free_gpus_idx = [i for i, _ in enumerate(available_gpus) if gpus_usage[i] < n_experiments_per_gpu]
     gpus_idx_to_take = free_gpus_idx[:n_gpus_required]
