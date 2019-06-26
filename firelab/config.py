@@ -4,9 +4,8 @@ so we do not need to pass params across functions and models
 """
 # TODO: is it really a good thing to keep it in global
 # instead of passing across functions?
+from typing import List
 
-IMMUTABILITY_ERROR_MSG = "Config properties are immutable"
-HOMOGENOUS_ARRAY_MSG = "Config supports only homogenous arrays"
 
 class Config:
     def __init__(self, config):
@@ -33,7 +32,6 @@ class Config:
         attrs = attr_path.split('.')
 
         for attr_name in attrs:
-
             if hasattr(curr_config, attr_name):
                 value = getattr(curr_config, attr_name)
 
@@ -63,7 +61,7 @@ class Config:
             if len(value) == 0:
                 setattr(self, key, tuple())
             else:
-                assert len(set([type(el) for el in value])) == 1, HOMOGENOUS_ARRAY_MSG
+                assert len(set([type(el) for el in value])) == 1, homogenous_array_message(value)
 
                 if type(value[0]) is dict:
                     # TODO: We should check types recursively
@@ -89,13 +87,14 @@ class Config:
         return hasattr(self, key)
 
     def __setattr__(self, name, value):
-        assert not hasattr(self, name), IMMUTABILITY_ERROR_MSG
+        assert not hasattr(self, name), \
+            f'You cannot change attributes (tried to change {name}), because config is immutable.'
 
         super(Config, self).__setattr__(name, value)
 
     def __delattr__(self, name):
         # TODO: not sure if this is the right exception cls :|
-        raise PermissionError(IMMUTABILITY_ERROR_MSG)
+        raise PermissionError("Config is immutable.")
 
     def to_dict(self):
         result = {}
@@ -107,3 +106,7 @@ class Config:
                 result[key] = self.get(key)
 
         return result
+
+
+def homogenous_array_message(array:List) -> str:
+    return f"You can provide only homogenous arrays. Array {array} has values of different type!"

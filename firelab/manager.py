@@ -120,13 +120,8 @@ def run_hpo(TrainerClass, global_config):
             ]
 
             pool.apply_async(run_single_hpo_experiment, args=args)
-            # results.append(pool.apply_async(run_single_hpo_experiment, args=args))
 
         pool.close()
-
-        # for result in results:
-        #     result.get()
-
         pool.join()
 
 
