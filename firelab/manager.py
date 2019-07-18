@@ -7,7 +7,7 @@ import logging
 import traceback
 import importlib.util
 from concurrent.futures import ProcessPoolExecutor, wait
-from torch.multiprocessing import Manager
+from torch.multiprocessing import Manager, Lock
 from typing import List, Iterable, Tuple
 from datetime import datetime
 
@@ -106,6 +106,7 @@ def run_hpo(TrainerClass, global_config):
 
     available_gpus:Tuple[int] = tuple(global_config.firelab.available_gpus)
     gpus_usage = Manager().list([0] * len(available_gpus))
+    gpus_usage_lock = Manager().Lock()
     futures = []
 
     with ProcessPoolExecutor(n_parallel) as executor:
@@ -116,6 +117,7 @@ def run_hpo(TrainerClass, global_config):
                 global_config.hpo.get('num_gpus_per_experiment', 1),
                 global_config.hpo.get('num_parallel_experiments_per_gpu', 1),
                 gpus_usage,
+                gpus_usage_lock,
                 available_gpus
             ]
 
@@ -125,18 +127,24 @@ def run_hpo(TrainerClass, global_config):
         wait(futures)
 
 
-def run_single_hpo_experiment(TrainerClass:BaseTrainer, config:Config, n_gpus_required:int,
-                              n_experiments_per_gpu:int, gpus_usage:Manager, available_gpus:Tuple[int]):
+def run_single_hpo_experiment(TrainerClass:BaseTrainer,
+                              config:Config,
+                              n_gpus_required:int,
+                              n_experiments_per_gpu:int,
+                              gpus_usage:Manager,
+                              gpus_usage_lock:Lock,
+                              available_gpus:Tuple[int]):
 
-    free_gpus_idx = [i for i, _ in enumerate(available_gpus) if gpus_usage[i] < n_experiments_per_gpu]
-    gpus_idx_to_take = free_gpus_idx[:n_gpus_required]
-    gpus_to_take = [available_gpus[i] for i in gpus_idx_to_take]
+    with gpus_usage_lock:
+        free_gpus_idx = [i for i, _ in enumerate(available_gpus) if gpus_usage[i] < n_experiments_per_gpu]
+        gpus_idx_to_take = free_gpus_idx[:n_gpus_required]
+        gpus_to_take = [available_gpus[i] for i in gpus_idx_to_take]
 
-    logger.info(f'[{config.firelab.exp_name}] GPUs usage: {gpus_usage}. GPUs to take: {gpus_to_take}.')
+        logger.info(f'[{config.firelab.exp_name}] GPUs usage: {gpus_usage}. GPUs to take: {gpus_to_take}.')
 
-    # Taking GPUs
-    for gpu_idx in gpus_idx_to_take:
-        gpus_usage[gpu_idx] += 1
+        # Taking GPUs
+        for gpu_idx in gpus_idx_to_take:
+            gpus_usage[gpu_idx] += 1
 
     config.firelab.set('available_gpus', gpus_to_take)
     config.firelab.set('device_name', f'cuda:{gpus_to_take[0]}')
@@ -153,8 +161,9 @@ def run_single_hpo_experiment(TrainerClass:BaseTrainer, config:Config, n_gpus_re
         raise
     finally:
         # Releasing GPUs
-        for gpu_idx in gpus_idx_to_take:
-            gpus_usage[gpu_idx] -= 1
+        with gpus_usage_lock:
+            for gpu_idx in gpus_idx_to_take:
+                gpus_usage[gpu_idx] -= 1
 
 
 # def continue_experiment(config, args):
