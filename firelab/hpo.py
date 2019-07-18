@@ -51,7 +51,7 @@ def create_hpo_configs(config:Config, idx_list:List[List[int]]) -> List[Config]:
         new_config.pop('hpo')
         new_config['firelab'].pop('available_gpus')
         new_config['firelab'].pop('device_name')
-        new_config['hp'] = {}
+        new_config['hp'] = new_config.get('hp', {})
 
         for key, value in zip(config.hpo.grid.keys(), values):
             new_config['hp'][key] = value
