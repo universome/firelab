@@ -16,7 +16,7 @@ import torch
 import coloredlogs
 
 from .config import Config
-from .utils.fs_utils import clean_dir, clean_file, touch_file, load_config, validate_path_existence
+from .utils.fs_utils import clean_dir, clean_file, touch_file, load_config, check_that_path_exists
 from .utils.training_utils import fix_random_seed, run_tensorboard
 from .base_trainer import BaseTrainer
 from .hpo import spawn_configs_for_hpo
@@ -61,13 +61,14 @@ def create_new_experiment(args):
 def start_experiment(config, tb_port:int=None, stay_after_training:bool=False):
     # TODO: ensure write access to the directory
     if not config.firelab.get('continue_from_iter') is None:
-        validate_path_existence(config.firelab.logs_path, True)
-        validate_path_existence(config.firelab.checkpoints_path, True)
-        # validate_path_existence(config.firelab.summary_path, True) # TODO
+        check_that_path_exists(config.firelab.logs_path)
+        check_that_path_exists(config.firelab.checkpoints_path)
+        # check_that_path_exists(config.firelab.summary_path) # TODO
 
     if config.firelab.get('continue_from_iter') is None:
         clean_dir(config.firelab.checkpoints_path, create=True)
         clean_dir(config.firelab.logs_path, create=True)
+        clean_dir(config.firelab.custom_data_path, create=True)
 
     if tb_port:
         logger.info(f'Starting tensorboard on port {tb_port}')
@@ -102,6 +103,7 @@ def run_hpo(TrainerClass, global_config):
                * (len(global_config.firelab.available_gpus) \
                // global_config.hpo.get('num_gpus_per_experiment', 1))
 
+    logger.info(f'Total number of experiments to run: {len(configs)}')
     logger.info(f'Num concurrent HPO experiments to run: {n_parallel}')
 
     available_gpus:Tuple[int] = tuple(global_config.firelab.available_gpus)
@@ -151,6 +153,7 @@ def run_single_hpo_experiment(TrainerClass:BaseTrainer,
 
     clean_dir(config.firelab.checkpoints_path, create=True)
     clean_dir(config.firelab.logs_path, create=True)
+    clean_dir(config.firelab.custom_data_path, create=True)
 
     try:
         trainer = TrainerClass(config)
@@ -195,6 +198,7 @@ def init_config(config_path:str, exp_name:str):
         'You cannot set `firelab` manually. It is internally managed by FireLab framework.'
 
     # Let's augment config with some helping stuff
+    # TODO: assign paths automatically, because we have a lot of duplication
     config.set('firelab', {
         'config_path': paths['config'],
         'project_path': os.getcwd(),
@@ -203,6 +207,7 @@ def init_config(config_path:str, exp_name:str):
         'logs_path': paths['logs'],
         'checkpoints_path': paths['checkpoints'],
         'summary_path': paths['summary'],
+        'custom_data_path': paths['custom_data_path']
     })
 
     if config.has('random_seed'):
@@ -245,6 +250,7 @@ def compute_paths(exp_name):
         'logs': os.path.join(experiments_dir, exp_name, "logs"),
         'checkpoints': os.path.join(experiments_dir, exp_name, "checkpoints"),
         'summary': os.path.join(experiments_dir, exp_name, "summary.yml"),
+        'custom_data_path': os.path.join(experiments_dir, exp_name, 'custom_data')
     }
 
 

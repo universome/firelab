@@ -56,11 +56,39 @@ def create_hpo_configs(config:Config, idx_list:List[List[int]]) -> List[Config]:
         for key, value in zip(config.hpo.grid.keys(), values):
             new_config['hp'][key] = value
 
-        new_config['firelab']['checkpoints_path'] = os.path.join(new_config['firelab']['checkpoints_path'], f'hpo-experiment-{i:04d}')
-        new_config['firelab']['logs_path'] = os.path.join(new_config['firelab']['logs_path'], f'hpo-experiment-{i:04d}')
-        new_config['firelab']['summary_path'] = os.path.join(new_config['firelab']['experiments_dir'], new_config['firelab']['exp_name'], f'summaries/hpo-experiment-{i:04d}.yml')
-        new_config['firelab']['exp_name'] = f"{new_config['firelab']['exp_name']}_hpo-experiment-{i:04d}"
-        new_config['firelab']['config_path'] = os.path.join(new_config['firelab']['experiments_dir'], new_config['firelab']['exp_name'], f'configs/hpo-experiment-{i:04d}.yml')
+        old_exp_name = new_config['firelab']['exp_name']
+        new_config['firelab']['exp_name'] = f"{old_exp_name}_hpo-experiment-{i:05d}"
+
+        new_config['firelab']['checkpoints_path'] = os.path.join(
+            new_config['firelab']['experiments_dir'],
+            old_exp_name,
+            'checkpoints',
+            f'hpo-experiment-{i:05d}'
+        )
+        new_config['firelab']['logs_path'] = os.path.join(
+            new_config['firelab']['experiments_dir'],
+            old_exp_name,
+            'logs',
+            f'hpo-experiment-{i:05d}'
+        )
+        new_config['firelab']['summary_path'] = os.path.join(
+            new_config['firelab']['experiments_dir'],
+            old_exp_name,
+            'summaries',
+            f'hpo-experiment-{i:05d}.yml'
+        )
+        new_config['firelab']['config_path'] = os.path.join(
+            new_config['firelab']['experiments_dir'],
+            old_exp_name,
+            'configs',
+            f'hpo-experiment-{i:05d}.yml'
+        )
+        new_config['firelab']['custom_data_path'] = os.path.join(
+            new_config['firelab']['experiments_dir'],
+            old_exp_name,
+            'custom_data',
+            f'hpo-experiment-{i:05d}'
+        )
 
         configs.append(Config(new_config))
 

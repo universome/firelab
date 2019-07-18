@@ -12,7 +12,7 @@ PATH_NOT_EXISTS_ERROR_MSG = ("`{}` directory or file does not exist")
 
 def clean_dir(dirpath, create=False):
     if not os.path.exists(dirpath):
-        if create: os.mkdir(dirpath)
+        if create: os.makedirs(dirpath, exist_ok=True)
         return
 
     for filename in os.listdir(dirpath):
@@ -42,9 +42,11 @@ def load_config(config_path):
     return config
 
 
-def validate_path_existence(path, should_exist):
-    if should_exist and not os.path.exists(path):
+def check_that_path_exists(path):
+    if not os.path.exists(path):
         raise Exception(PATH_NOT_EXISTS_ERROR_MSG.format(path))
 
-    if not should_exist and os.path.exists(path):
+
+def check_that_path_does_not_exist(path):
+    if os.path.exists(path):
         raise Exception(f"Path {path} already exists")
