@@ -9,7 +9,6 @@ import importlib.util
 from concurrent.futures import ProcessPoolExecutor, wait
 from torch.multiprocessing import Manager, Lock
 from typing import List, Iterable, Tuple
-from datetime import datetime
 
 import numpy
 import torch
@@ -46,7 +45,8 @@ def run(cmd:str, args):
 def create_new_experiment(args):
     # TODO: looks like this lines should not be here
     config_name = os.path.basename(args.config_path)[:-4]
-    exp_name = config_name + datetime.now().strftime('-%Y-%m-%d_%H-%M-%S')
+    version = infer_new_experiment_version(get_experiments_dir(), config_name)
+    exp_name = f'{config_name}-{version:05d}'
     config = init_config(args.config_path, exp_name)
 
     os.makedirs(config.firelab.logs_path)
@@ -154,6 +154,7 @@ def run_single_hpo_experiment(TrainerClass:BaseTrainer,
     clean_dir(config.firelab.checkpoints_path, create=True)
     clean_dir(config.firelab.logs_path, create=True)
     clean_dir(config.firelab.custom_data_path, create=True)
+    config.save(config.firelab.config_path) # Saving config for future
 
     try:
         trainer = TrainerClass(config)
@@ -276,3 +277,15 @@ def clean_experiments_by_prefix(prefix:str):
             shutil.rmtree(dir_path)
 
     logger.info('Done')
+
+
+def infer_new_experiment_version(experiments_dir:str, prefix:str) -> int:
+    experiments = os.listdir(experiments_dir)
+    experiments = [exp for exp in experiments if exp.startswith(prefix)]
+    versions = [exp[len(prefix) + 1:] for exp in experiments]
+    versions = [int(v) for v in versions]
+
+    if len(versions) > 0:
+        return max(versions) + 1
+    else:
+        return 1
