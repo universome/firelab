@@ -2,8 +2,8 @@
 This is a config file. We keep it in global,
 so we do not need to pass params across functions and models
 """
-# TODO: is it really a good thing to keep it in global
-# instead of passing across functions?
+import os
+import yaml
 from typing import List
 
 
@@ -106,6 +106,11 @@ class Config:
                 result[key] = self.get(key)
 
         return result
+
+    def save(self, save_path:os.PathLike):
+        """Saves config in the specified path"""
+        with open(save_path, 'w') as f:
+            yaml.safe_dump(self.to_dict(), f, default_flow_style=False)
 
 
 def homogenous_array_message(array:List) -> str:

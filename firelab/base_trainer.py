@@ -1,6 +1,7 @@
 import os
 import pickle
 import logging
+from typing import Dict
 
 import yaml
 import torch
@@ -312,8 +313,12 @@ class BaseTrainer:
             'termination_reason': termination_reason,
             'num_iters_done': self.num_iters_done,
             'num_epochs_done': self.num_epochs_done,
-            'config': self.config.to_dict()
+            'config': self.config.to_dict(),
+            'results': self.get_training_results()
         }
 
         with open(self.config.firelab.summary_path, 'w') as f:
-            yaml.dump(summary, f, default_flow_style=False)
+            yaml.safe_dump(summary, f, default_flow_style=False)
+
+    def get_training_results(self) -> Dict:
+        return {}

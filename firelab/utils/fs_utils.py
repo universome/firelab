@@ -37,7 +37,8 @@ def touch_file(file_path):
 
 def load_config(config_path):
     with open(config_path, "r", encoding="utf-8") as config_file:
-        config = Config(yaml.safe_load(config_file))
+        # TODO: use safe_load after safe_dump fix is merged
+        config = Config(yaml.load(config_file))
 
     return config
 
