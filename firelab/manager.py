@@ -136,27 +136,26 @@ def run_single_hpo_experiment(TrainerClass:BaseTrainer,
                               gpus_usage:Manager,
                               gpus_usage_lock:Lock,
                               available_gpus:Tuple[int]):
-
-    with gpus_usage_lock:
-        free_gpus_idx = [i for i, _ in enumerate(available_gpus) if gpus_usage[i] < n_experiments_per_gpu]
-        gpus_idx_to_take = free_gpus_idx[:n_gpus_required]
-        gpus_to_take = [available_gpus[i] for i in gpus_idx_to_take]
-
-        logger.info(f'[{config.firelab.exp_name}] GPUs usage: {gpus_usage}. GPUs to take: {gpus_to_take}.')
-
-        # Taking GPUs
-        for gpu_idx in gpus_idx_to_take:
-            gpus_usage[gpu_idx] += 1
-
-    config.firelab.set('available_gpus', gpus_to_take)
-    config.firelab.set('device_name', f'cuda:{gpus_to_take[0]}')
-
-    clean_dir(config.firelab.checkpoints_path, create=True)
-    clean_dir(config.firelab.logs_path, create=True)
-    clean_dir(config.firelab.custom_data_path, create=True)
-    config.save(config.firelab.config_path) # Saving config for future
-
     try:
+        with gpus_usage_lock:
+            free_gpus_idx = [i for i, _ in enumerate(available_gpus) if gpus_usage[i] < n_experiments_per_gpu]
+            gpus_idx_to_take = free_gpus_idx[:n_gpus_required]
+            gpus_to_take = [available_gpus[i] for i in gpus_idx_to_take]
+
+            logger.info(f'[{config.firelab.exp_name}] GPUs usage: {gpus_usage}. GPUs to take: {gpus_to_take}.')
+
+            # Taking GPUs
+            for gpu_idx in gpus_idx_to_take:
+                gpus_usage[gpu_idx] += 1
+
+        config.firelab.set('available_gpus', gpus_to_take)
+        config.firelab.set('device_name', f'cuda:{gpus_to_take[0]}')
+
+        clean_dir(config.firelab.checkpoints_path, create=True)
+        clean_dir(config.firelab.logs_path, create=True)
+        clean_dir(config.firelab.custom_data_path, create=True)
+        config.save(config.firelab.config_path) # Saving config for future
+
         trainer = TrainerClass(config)
         trainer.start()
     except Exception as e:

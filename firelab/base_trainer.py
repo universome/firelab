@@ -192,7 +192,6 @@ class BaseTrainer:
             self._set_eval_mode()
             self.validate()
 
-
     def _checkpoint(self):
         should_checkpoint = False
 
