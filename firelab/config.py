@@ -92,6 +92,9 @@ class Config:
 
         super(Config, self).__setattr__(name, value)
 
+    def __str__(self):
+        return yaml.safe_dump(self.to_dict(), default_flow_style=False)
+
     def __delattr__(self, name):
         # TODO: not sure if this is the right exception cls :|
         raise PermissionError("Config is immutable.")
@@ -107,8 +110,11 @@ class Config:
 
         return result
 
-    def save(self, save_path:os.PathLike):
+    def save(self, save_path:os.PathLike, parents:bool=True):
         """Saves config in the specified path"""
+        if parents and not os.path.exists(os.path.dirname(save_path)):
+            os.makedirs(os.path.dirname(save_path), exist_ok=True)
+
         with open(save_path, 'w') as f:
             yaml.safe_dump(self.to_dict(), f, default_flow_style=False)
 
