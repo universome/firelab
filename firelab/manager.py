@@ -15,7 +15,7 @@ import torch
 import coloredlogs
 
 from .config import Config
-from .utils.fs_utils import clean_dir, clean_file, touch_file, load_config, check_that_path_exists
+from .utils.fs_utils import clean_dir, clean_file, touch_file, load_config, check_that_path_exists, infer_new_experiment_version
 from .utils.training_utils import fix_random_seed, run_tensorboard
 from .base_trainer import BaseTrainer
 from .hpo import spawn_configs_for_hpo
@@ -276,15 +276,3 @@ def clean_experiments_by_prefix(prefix:str):
             shutil.rmtree(dir_path)
 
     logger.info('Done')
-
-
-def infer_new_experiment_version(experiments_dir:str, prefix:str) -> int:
-    experiments = os.listdir(experiments_dir)
-    experiments = [exp for exp in experiments if exp.startswith(prefix)]
-    versions = [exp[len(prefix) + 1:] for exp in experiments]
-    versions = [int(v) for v in versions]
-
-    if len(versions) > 0:
-        return max(versions) + 1
-    else:
-        return 1
