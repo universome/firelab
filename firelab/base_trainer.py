@@ -9,60 +9,30 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 import coloredlogs
 
-
 from firelab.utils.training_utils import is_history_improving, safe_oom_call
-
+from firelab.utils.fs_utils import infer_new_experiment_version
+from firelab.config import Config
 
 class BaseTrainer:
     def __init__(self, config):
         # TODO: we should somehow say more loudly that we are reserving these properties
         # Besides, some properties are vital for user to define at he has not idea about it :|
+        # TODO: even I do not know all the options available in config :|
         self.config = config
+
+        self._init_logger()
+        self._init_paths()
+        self._init_tb_writer()
+        self._init_checkpointing_strategy()
+        self._init_validation_strategy()
+        self._init_stopping_criteria()
+        self._init_devices()
+
         self.num_iters_done = 0
         self.num_epochs_done = 0
-        self.max_num_epochs = config.get('max_num_epochs')
-        self.max_num_iters = config.get('max_num_iters')
-        self.losses = {}
-        self.logger = logging.getLogger(self.config.firelab.exp_name)
         self.is_explicitly_stopped = False
-
-        coloredlogs.install(level=self.config.get('logging.level', 'DEBUG'), logger=self.logger)
-
-        if self.config.get('checkpoint'):
-            self.checkpoint_freq_iters = self.config.checkpoint.get('freq_iters')
-            self.checkpoint_freq_epochs = self.config.checkpoint.get('freq_epochs')
-            self.checkpoint_list = sum([self.config.modules.get(k) for k in self.config.modules.keys()], tuple())
-
-            self.logger.info('Will be checkpointing the following modules: {}'.format(self.checkpoint_list))
-
-            if self.config.checkpoint.get('pickle'):
-                assert type(self.config.checkpoint.pickle) is tuple
-                self.logger.info('Will be checkpointing with pickle the following modules: {}'.format(self.config.checkpoint.pickle))
-
-            assert not (self.checkpoint_freq_iters and self.checkpoint_freq_epochs), """
-                Can't save both on iters and epochs.
-                Please, remove either freq_iters or freq_epochs
-            """
-        else:
-            # TODO: govnokod :|
-            self.checkpoint_freq_iters = None
-            self.checkpoint_freq_epochs = None
-
-        self.val_freq_iters = config.get('val_freq_iters')
-        self.val_freq_epochs = config.get('val_freq_epochs')
-
-        assert not(self.val_freq_iters and self.val_freq_epochs), """
-            Can't validate on both iters and epochs.
-            Please, remove either val_freq_iters or val_freq_epochs
-        """
-
         self.train_dataloader = None
         self.val_dataloader = None
-
-        self.writer = SummaryWriter(config.firelab.logs_path, flush_secs=5)
-
-        if not (self.max_num_iters or self.max_num_epochs or self.config.has('early_stopping')):
-            self.logger.warn('You did not specify any stopping criteria (max_num_iters, max_num_epochs, early_stopping). I am going to run forever. Huehuehue.')
 
     ############################
     ### Overwritable methods ###
@@ -104,12 +74,19 @@ class BaseTrainer:
     def after_training_hook(self):
         pass
 
+    def get_training_results(self) -> Dict:
+        """
+        Function which returns training results which
+        are passed to summary generation after training is done
+        """
+        return {}
+
     ######################
     ### Public methods ###
     ######################
     def start(self):
-        if len(self.config.firelab.available_gpus) > 0:
-            with torch.cuda.device(self.config.firelab.available_gpus[0]):
+        if len(self.available_gpus) > 0:
+            with torch.cuda.device(self.available_gpus[0]):
                 self._start()
         else:
             self._start()
@@ -174,7 +151,7 @@ class BaseTrainer:
                 self.num_epochs_done += 1
                 self.on_epoch_done()
         except Exception as e:
-            self._write_summary(str(e))
+            self._terminate_experiment(str(e))
             raise
 
     def _try_to_validate(self):
@@ -203,7 +180,14 @@ class BaseTrainer:
             freq = self.checkpoint_freq_epochs * epoch_size
             should_checkpoint = self.num_iters_done % freq == 0
 
-        if not should_checkpoint: return
+        if not should_checkpoint:
+            return
+
+        # We want to checkpoint right now!
+        if not self.paths.has('checkpoints_path'):
+            raise RuntimeError(
+                'Tried to checkpoint, but not checkpoint path was specified. Cannot checkpoint.'\
+                'Provide either `paths.checkpoints_path` or `experiments_dir` in config.')
 
         for module_name in self.checkpoint_list:
             self._save_module_state(getattr(self, module_name), module_name)
@@ -223,35 +207,35 @@ class BaseTrainer:
 
     def _try_to_load_checkpoint(self):
         "Loads model state from checkpoint if it is provided"
-        if self.config.firelab.get('continue_from_iter') is None: return
+        if not self.config.has('continue_from_iter'): return
 
-        if not self.config.firelab.reset_iters_counter:
-            self.num_iters_done = self.config.firelab.continue_from_iter
+        if not self.config.reset_iters_counter:
+            self.num_iters_done = self.config.continue_from_iter
             self.num_epochs_done = self.num_iters_done // len(self.train_dataloader)
 
         for module_name in self.checkpoint_list:
-            self._load_module_state(getattr(self, module_name), module_name, self.config.firelab.continue_from_iter)
+            self._load_module_state(getattr(self, module_name), module_name, self.config.continue_from_iter)
 
         if self.config.checkpoint.get('pickle'):
             for module_name in self.config.checkpoint.pickle:
-                self._unpickle(module_name, self.config.firelab.continue_from_iter)
+                self._unpickle(module_name, self.config.continue_from_iter)
 
     def _should_stop(self) -> bool:
         "Checks all stopping criteria"
         if (not self.max_num_iters is None) and (self.num_iters_done >= self.max_num_iters):
-            self._write_summary('Max num iters exceeded')
+            self._terminate_experiment('Max num iters exceeded')
             return True
 
         if (not self.max_num_epochs is None) and (self.num_epochs_done >= self.max_num_epochs):
-            self._write_summary('Max num epochs exceeded')
+            self._terminate_experiment('Max num epochs exceeded')
             return True
 
         if self._should_early_stop():
-            self._write_summary('Early stopping')
+            self._terminate_experiment('Early stopping')
             return True
 
         if self.is_explicitly_stopped:
-            self._write_summary(f'Stopped explicitly via .stop() method. Reason: {self._explicit_stopping_reason}')
+            self._terminate_experiment(f'Stopped explicitly via .stop() method. Reason: {self._explicit_stopping_reason}')
             return True
 
         return False
@@ -260,7 +244,7 @@ class BaseTrainer:
         "Checks early stopping criterion"
         if self.config.get('early_stopping') is None: return False
 
-        history = self.losses[self.config.early_stopping.loss]
+        history = self.losses[self.config.early_stopping.loss_name]
         n_steps = self.config.early_stopping.history_length
         should_decrease = self.config.early_stopping.should_decrease
 
@@ -282,17 +266,17 @@ class BaseTrainer:
 
     def _save_module_state(self, module, name):
         module_name = '{}-{}.pt'.format(name, self.num_iters_done)
-        module_path = os.path.join(self.config.firelab.checkpoints_path, module_name)
+        module_path = os.path.join(self.paths.checkpoints_path, module_name)
         torch.save(module.state_dict(), module_path)
 
     def _load_module_state(self, module, name, iteration):
         module_name = '{}-{}.pt'.format(name, iteration)
-        module_path = os.path.join(self.config.firelab.checkpoints_path, module_name)
+        module_path = os.path.join(self.paths.checkpoints_path, module_name)
         module.load_state_dict(torch.load(module_path))
 
     def _pickle(self, module, name):
         file_name = '{}-{}.pickle'.format(name, self.num_iters_done)
-        path = os.path.join(self.config.firelab.checkpoints_path, file_name)
+        path = os.path.join(self.paths.checkpoints_path, file_name)
         pickle.dump(module, open(path, 'wb'))
 
     def _unpickle(self, name, iteration):
@@ -300,15 +284,19 @@ class BaseTrainer:
 
     def _read_pickle_module(self, name, iteration):
         file_name = '{}-{}.pickle'.format(name, iteration)
-        path = os.path.join(self.config.firelab.checkpoints_path, file_name)
+        path = os.path.join(self.paths.checkpoints_path, file_name)
 
         return pickle.load(open(path, 'rb'))
 
-    def _write_summary(self, termination_reason:str):
+    def _terminate_experiment(self, termination_reason):
         self.logger.info('Terminating experiment because [%s]' % termination_reason)
+        self._write_summary(termination_reason)
+
+    def _write_summary(self, termination_reason:str):
+        if not self.paths.has('summary_path'): return
 
         summary = {
-            'name': self.config.firelab.exp_name,
+            'name': self.config.get('exp_name', 'unnamed'),
             'termination_reason': termination_reason,
             'num_iters_done': self.num_iters_done,
             'num_epochs_done': self.num_epochs_done,
@@ -316,8 +304,131 @@ class BaseTrainer:
             'results': self.get_training_results()
         }
 
-        with open(self.config.firelab.summary_path, 'w') as f:
+        with open(self.paths.summary_path, 'w') as f:
             yaml.safe_dump(summary, f, default_flow_style=False)
 
-    def get_training_results(self) -> Dict:
-        return {}
+    ##############################
+    ### Initialization methods ###
+    ##############################
+    def _init_logger(self):
+        if self.config.has('exp_name'):
+            self.logger = logging.getLogger(self.config.exp_name)
+        else:
+            # TODO: is it okay to use class name?
+            self.logger = logging.getLogger(self.__class__.__name__)
+            self.logger.warn('You should provide experiment name (by setting "exp_name" attribute in config) ' \
+                             'if you want trainer logger to have a specific name.')
+
+        coloredlogs.install(level=self.config.get('logging.level', 'DEBUG'), logger=self.logger)
+
+    def _init_paths(self):
+        if self.config.has('firelab.paths'):
+            # We are likely and HPO experiment, paths are provided for use, let's use them
+            # TODO: validate paths
+            self.paths = Config(self.config.firelab.paths.to_dict())
+        elif self.config.has('experiments_dir'):
+            # We are only given a path to experiment dir. Have to create all the paths by ourselves
+            os.makedirs(self.config.experiments_dir, exist_ok=True)
+
+            exp_base_name = self.config.get('exp_name', 'experiment')
+            exp_version = infer_new_experiment_version(self.config.experiments_dir, exp_base_name)
+            experiment_path = os.path.join(self.config.experiments_dir, f'{exp_base_name}-{exp_version:05d}')
+
+            self.logger.info(f'Will be saving checkpoints/logs/etc into {experiment_path} directory.')
+
+            self.paths = Config({
+                'experiment_path': experiment_path,
+                'checkpoints_path': os.path.join(experiment_path, 'checkpoints'),
+                'summary_path': os.path.join(experiment_path, 'summary.yml'),
+                'logs_path': os.path.join(experiment_path, 'logs'),
+                'custom_data_path': os.path.join(experiment_path, 'custom_data')
+            })
+        else:
+            # TODO: check if exp_name is provided and ask a user (y/n) if one should create the dir
+            self.logger.warn('`experiments_dir` is not provided, so I will not checkpoint anything or use tensorboard logging')
+            self.paths = Config({})
+
+        if hasattr(self, 'paths'):
+            if self.paths.has('checkpoints_path'): os.makedirs(self.paths.checkpoints_path)
+            if self.paths.has('logs_path'): os.makedirs(self.paths.logs_path)
+            if self.paths.has('custom_data_path'): os.makedirs(self.paths.custom_data_path)
+            if self.paths.has('summary_path'): os.makedirs(os.path.dirname(self.paths.summary_path), exist_ok=True)
+
+    def _init_tb_writer(self):
+        if not self.paths.has('logs_path'):
+            logger = self.logger
+
+            # TODO: maybe we should just raise an exception?
+            class DummyWriter:
+                def __getattribute__(self, name):
+                    dummy_fn = lambda *args, **kwargs: None
+                    logger.warn('Tried to use tensorboard, but tensorboard logs dir was not set. Nothing is written.')
+                    return dummy_fn
+
+            self.writer = DummyWriter()
+        else:
+            self.writer = SummaryWriter(
+                self.paths.logs_path,
+                flush_secs=self.config.get('logging.tb_flush_secs', 5))
+
+    def _init_checkpointing_strategy(self):
+        if self.config.get('checkpoint'):
+            self.checkpoint_freq_iters = self.config.checkpoint.get('freq_iters')
+            self.checkpoint_freq_epochs = self.config.checkpoint.get('freq_epochs')
+            self.checkpoint_list = sum([self.config.modules.get(k) for k in self.config.modules.keys()], tuple())
+
+            self.logger.info('Will be checkpointing the following modules: {}'.format(self.checkpoint_list))
+
+            if self.config.checkpoint.get('pickle'):
+                assert type(self.config.checkpoint.pickle) is tuple
+                self.logger.info(
+                    f'Will be checkpointing with pickle' \
+                    f'the following modules: {self.config.checkpoint.pickle}')
+
+            assert not (self.checkpoint_freq_iters and self.checkpoint_freq_epochs), """
+                Can't save both on iters and epochs.
+                Please, remove either freq_iters or freq_epochs
+            """
+        else:
+            # TODO: govnokod :|
+            self.checkpoint_freq_iters = None
+            self.checkpoint_freq_epochs = None
+
+    def _init_validation_strategy(self):
+        self.val_freq_iters = self.config.get('val_freq_iters')
+        self.val_freq_epochs = self.config.get('val_freq_epochs')
+
+        assert not(self.val_freq_iters and self.val_freq_epochs), """
+            Can't validate on both iters and epochs.
+            Please, remove either val_freq_iters or val_freq_epochs
+        """
+
+    def _init_stopping_criteria(self):
+        self.max_num_epochs = self.config.get('max_num_epochs')
+        self.max_num_iters = self.config.get('max_num_iters')
+        self.losses = {}
+
+        if not (self.max_num_iters or self.max_num_epochs or self.config.has('early_stopping')):
+            self.logger.warn(
+                'You did not specify any stopping criteria' \
+                '(max_num_iters, max_num_epochs, early_stopping).' \
+                'I am going to run forever. Huehuehue.')
+
+    def _init_devices(self):
+        assert not hasattr(self, 'device_name'), 'You should not overwrite "device_name" attribute in Trainer.'
+        assert not hasattr(self, 'available_gpus'), 'You should not overwrite "available_gpus" attribute in Trainer.'
+
+        visible_gpus = list(range(torch.cuda.device_count()))
+
+        if self.config.get('available_gpus'):
+            self.available_gpus = self.config.available_gpus
+        else:
+            # TODO: maybe we should better take GPUs only when allowed?
+            self.available_gpus = visible_gpus
+            self.logger.warn(f'Attribute "available_gpus" was not set in config and '
+                             f'{len(visible_gpus)} GPUs were found. I gonna use them all.')
+
+        if len(self.available_gpus) > 0:
+            self.device_name = f'cuda:{self.available_gpus[0]}'
+        else:
+            self.device_name = 'cpu'
