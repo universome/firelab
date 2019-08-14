@@ -1,4 +1,4 @@
-## firelab (version 0.0.7)
+## firelab (version 0.0.8)
 ### About
 Framework for running DL experiments with pytorch.
 Provides the following useful stuff:
@@ -12,17 +12,18 @@ Provides the following useful stuff:
 pip install firelab
 ```
 
-### TODO
-- Run in daemon.
-- Implement `firelab ls` command
-- Easier profiling (via contexts?)
-- There are some interseting features in https://github.com/vpj/lab.
-- Add commit hash to summary
-- Create new branch/commit for each experiment?
-- More meaningful error messages.
-- Since we use Pool and torch.utils.DataLoader uses Pool, we can't set num_workers > 0, because "daemonic processes are not allowed to have children".
-- Critical fix: model does not release GPU after training is finished (when we do not use HPO) :|
-- TODO: Proper handling of errors: should we fail on the first exception? Should we try/catch result.get() in process pool?
+### Future plans
+[ ] Run in daemon.
+[ ] Implement `firelab ls` command
+[ ] Easier profiling (via contexts?)
+[ ] There are some interseting features in https://github.com/vpj/lab.
+[ ] Add commit hash to summary
+[ ] Create new branch/commit for each experiment?
+[ ] More meaningful error messages.
+[ ] Does model release GPU after training is finished (when we do not use HPO)?
+[ ] Proper handling of errors in HPO: should we fail on the first exception? Should we try/catch result.get() in process pool?
+[x] Make trainers run without config.firelab, this will make it possible to run trainer from python
+[ ] Does continue_from_iter work?
 
 ### Useful commands:
 - `firelab ls` — lists all running experiments
