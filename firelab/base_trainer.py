@@ -420,7 +420,7 @@ class BaseTrainer:
 
         visible_gpus = list(range(torch.cuda.device_count()))
 
-        if self.config.get('available_gpus'):
+        if self.config.has('available_gpus'):
             self.available_gpus = self.config.available_gpus
         else:
             # TODO: maybe we should better take GPUs only when allowed?
