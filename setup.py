@@ -4,7 +4,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='firelab',
-    version='0.0.8',
+    version='0.0.8.2',
     author='Ivan Skorokhodov',
     author_email='iskorokhodov@gmail.com',
     url='https://github.com/universome/firelab',
