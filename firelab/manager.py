@@ -49,30 +49,22 @@ def create_new_experiment(args):
     exp_name = f'{config_name}-{version:05d}'
     config = init_config(args.config_path, exp_name)
 
-    os.makedirs(config.firelab.logs_path)
-    os.makedirs(config.firelab.checkpoints_path)
-    shutil.copyfile(args.config_path, config.firelab.config_path)
-
-    logger.info(f'New experiment created at: {os.path.join(config.firelab.experiments_dir, exp_name)}')
+    # TODO: Trainer should do this thing, no?
+    # shutil.copyfile(args.config_path, config.firelab.paths.config_path)
 
     return config
 
 
 def start_experiment(config, tb_port:int=None, stay_after_training:bool=False):
     # TODO: ensure write access to the directory
-    if not config.firelab.get('continue_from_iter') is None:
-        check_that_path_exists(config.firelab.logs_path)
-        check_that_path_exists(config.firelab.checkpoints_path)
+    if config.firelab.has('continue_from_iter'):
+        check_that_path_exists(config.firelab.paths.logs_path)
+        check_that_path_exists(config.firelab.paths.checkpoints_path)
         # check_that_path_exists(config.firelab.summary_path) # TODO
-
-    if config.firelab.get('continue_from_iter') is None:
-        clean_dir(config.firelab.checkpoints_path, create=True)
-        clean_dir(config.firelab.logs_path, create=True)
-        clean_dir(config.firelab.custom_data_path, create=True)
 
     if tb_port:
         logger.info(f'Starting tensorboard on port {tb_port}')
-        run_tensorboard(config.firelab.logs_path, tb_port)
+        run_tensorboard(config.firelab.paths.logs_path, tb_port)
 
     # TODO: are there any better ways to reach src.trainers?
     sys.path.append(os.getcwd())
@@ -96,18 +88,18 @@ def start_experiment(config, tb_port:int=None, stay_after_training:bool=False):
 def run_hpo(TrainerClass, global_config):
     # TODO: Is it ok to assume that we always have more CPUs than concurrent experiments?
     configs = spawn_configs_for_hpo(global_config)
-    clean_dir(os.path.join(global_config.firelab.experiments_dir,
+    clean_dir(os.path.join(global_config.firelab.paths.experiments_dir,
                            global_config.firelab.exp_name, 'summaries'), create=True)
 
     n_parallel = global_config.hpo.get('num_parallel_experiments_per_gpu', 1) \
-               * (len(global_config.firelab.available_gpus) \
+               * (len(global_config.firelab.gpus) \
                // global_config.hpo.get('num_gpus_per_experiment', 1))
 
     logger.info(f'Total number of experiments to run: {len(configs)}')
     logger.info(f'Num concurrent HPO experiments to run: {n_parallel}')
 
-    available_gpus:Tuple[int] = tuple(global_config.firelab.available_gpus)
-    gpus_usage = Manager().list([0] * len(available_gpus))
+    gpus:Tuple[int] = tuple(global_config.firelab.gpus)
+    gpus_usage = Manager().list([0] * len(gpus))
     gpus_usage_lock = Manager().Lock()
     futures = []
 
@@ -120,7 +112,7 @@ def run_hpo(TrainerClass, global_config):
                 global_config.hpo.get('num_parallel_experiments_per_gpu', 1),
                 gpus_usage,
                 gpus_usage_lock,
-                available_gpus
+                gpus
             ]
 
             future = executor.submit(run_single_hpo_experiment, *args)
@@ -135,12 +127,12 @@ def run_single_hpo_experiment(TrainerClass:BaseTrainer,
                               n_experiments_per_gpu:int,
                               gpus_usage:Manager,
                               gpus_usage_lock:Lock,
-                              available_gpus:Tuple[int]):
+                              gpus:Tuple[int]):
     try:
         with gpus_usage_lock:
-            free_gpus_idx = [i for i, _ in enumerate(available_gpus) if gpus_usage[i] < n_experiments_per_gpu]
+            free_gpus_idx = [i for i, _ in enumerate(gpus) if gpus_usage[i] < n_experiments_per_gpu]
             gpus_idx_to_take = free_gpus_idx[:n_gpus_required]
-            gpus_to_take = [available_gpus[i] for i in gpus_idx_to_take]
+            gpus_to_take = [gpus[i] for i in gpus_idx_to_take]
 
             logger.info(f'[{config.firelab.exp_name}] GPUs usage: {gpus_usage}. GPUs to take: {gpus_to_take}.')
 
@@ -148,13 +140,9 @@ def run_single_hpo_experiment(TrainerClass:BaseTrainer,
             for gpu_idx in gpus_idx_to_take:
                 gpus_usage[gpu_idx] += 1
 
-        config.firelab.set('available_gpus', gpus_to_take)
+        config.firelab.set('gpus', gpus_to_take)
         config.firelab.set('device_name', f'cuda:{gpus_to_take[0]}')
-
-        clean_dir(config.firelab.checkpoints_path, create=True)
-        clean_dir(config.firelab.logs_path, create=True)
-        clean_dir(config.firelab.custom_data_path, create=True)
-        config.save(config.firelab.config_path) # Saving config for future
+        config.save(config.firelab.paths.config_path) # Saving config for future
 
         trainer = TrainerClass(config)
         trainer.start()
@@ -171,7 +159,7 @@ def run_single_hpo_experiment(TrainerClass:BaseTrainer,
 
 # def continue_experiment(config, args):
 #     # Finding latest checkpoint
-#     checkpoints = os.listdir(config.firelab.checkpoints_path)
+#     checkpoints = os.listdir(config.firelab.paths.checkpoints_path)
 
 #     if checkpoints == []:
 #         raise Exception('Can\'t continue: no checkpoints are available')
@@ -200,14 +188,16 @@ def init_config(config_path:str, exp_name:str):
     # Let's augment config with some helping stuff
     # TODO: assign paths automatically, because we have a lot of duplication
     config.set('firelab', {
-        'config_path': paths['config'],
-        'project_path': os.getcwd(),
-        'experiments_dir': paths['experiments_dir'],
         'exp_name': exp_name,
-        'logs_path': paths['logs'],
-        'checkpoints_path': paths['checkpoints'],
-        'summary_path': paths['summary'],
-        'custom_data_path': paths['custom_data_path']
+        'paths': {
+            'config_path': paths['config_path'],
+            'project_path': os.getcwd(),
+            'experiments_dir': paths['experiments_dir'],
+            'logs_path': paths['logs_path'],
+            'checkpoints_path': paths['checkpoints_path'],
+            'summary_path': paths['summary_path'],
+            'custom_data_path': paths['custom_data_path']
+        }
     })
 
     if config.has('random_seed'):
@@ -218,22 +208,19 @@ def init_config(config_path:str, exp_name:str):
     # Setting available GPUs and proper device
     visible_gpus = list(range(torch.cuda.device_count()))
 
-    if not config.has('available_gpus'):
+    if not config.has('gpus'):
         if len(visible_gpus) > 0:
-            logger.info(f'Found {len(visible_gpus)} GPUs, but `available_gpus` parameter is not set. '\
+            logger.info(f'Found {len(visible_gpus)} GPUs, but `gpus` parameter is not set. '\
                   'I gonna use them all!')
 
-        config.firelab.set('available_gpus', visible_gpus)
+        config.firelab.set('gpus', visible_gpus)
     else:
-        config.firelab.set('available_gpus', [gpu for gpu in config.available_gpus])
+        config.firelab.set('gpus', [gpu for gpu in config.gpus])
 
-    assert not config.has('device_name'), \
-        'FireLab detects and sets device_name for you. You influence it via `available_gpus`.'
-
-    if len(config.firelab.available_gpus) > 0:
-        config.firelab.set('device_name', 'cuda:%d' % config.firelab.available_gpus[0])
-    else:
-        config.firelab.set('device_name', 'cpu')
+    # if len(config.firelab.gpus) > 0:
+    #     config.firelab.set('device_name', 'cuda:%d' % config.firelab.gpus[0])
+    # else:
+    #     config.firelab.set('device_name', 'cpu')
 
     # TODO: make config immutable
 
@@ -246,10 +233,10 @@ def compute_paths(exp_name):
 
     return {
         'experiments_dir': experiments_dir,
-        'config': os.path.join(experiments_dir, exp_name, "config.yml"),
-        'logs': os.path.join(experiments_dir, exp_name, "logs"),
-        'checkpoints': os.path.join(experiments_dir, exp_name, "checkpoints"),
-        'summary': os.path.join(experiments_dir, exp_name, "summary.yml"),
+        'config_path': os.path.join(experiments_dir, exp_name, "config.yml"),
+        'logs_path': os.path.join(experiments_dir, exp_name, "logs"),
+        'checkpoints_path': os.path.join(experiments_dir, exp_name, "checkpoints"),
+        'summary_path': os.path.join(experiments_dir, exp_name, "summary.yml"),
         'custom_data_path': os.path.join(experiments_dir, exp_name, 'custom_data')
     }
 
@@ -260,9 +247,9 @@ def get_experiments_dir():
 
 
 def run_tensorboard_for_exp(args):
-    config_path = compute_paths(args.exp_name)['config']
+    config_path = compute_paths(args.exp_name)['config_path']
     config = init_config(config_path, args.exp_name)
-    run_tensorboard(config.firelab.logs_path, args.tb_port)
+    run_tensorboard(config.firelab.paths.logs_path, args.tb_port)
     signal.pause()
 
 

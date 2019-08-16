@@ -79,12 +79,30 @@ class Config:
     def keys(self):
         return self._keys
 
-    def has(self, key):
+    def has(self, attr_path:str):
         """
         Checks, if the given key was set
         (note, that it can be set to None)
+
+        TODO: this code is almost identical to .get() method. Refactor.
         """
-        return hasattr(self, key)
+        curr_config = self
+        attrs = attr_path.split('.')
+
+        for attr_lvl_name in attrs:
+            if hasattr(curr_config, attr_lvl_name):
+                value = getattr(curr_config, attr_lvl_name)
+
+                if attr_lvl_name == attrs[-1]:
+                    return True
+                elif isinstance(value, Config):
+                    curr_config = value
+                else:
+                    break
+            else:
+                break
+
+        return False
 
     def __setattr__(self, name, value):
         assert not hasattr(self, name), \

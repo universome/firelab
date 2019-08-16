@@ -49,8 +49,7 @@ def create_hpo_configs(config:Config, idx_list:List[List[int]]) -> List[Config]:
         values = [config.hpo.grid.get(p)[i] for p, i in zip(config.hpo.grid.keys(), idx)]
         new_config = config.to_dict()
         new_config.pop('hpo')
-        new_config['firelab'].pop('available_gpus')
-        new_config['firelab'].pop('device_name')
+        new_config['firelab'].pop('gpus')
         new_config['hp'] = new_config.get('hp', {})
 
         for key, value in zip(config.hpo.grid.keys(), values):
@@ -58,37 +57,38 @@ def create_hpo_configs(config:Config, idx_list:List[List[int]]) -> List[Config]:
 
         old_exp_name = new_config['firelab']['exp_name']
         new_config['firelab']['exp_name'] = f"{old_exp_name}_hpo-experiment-{i:05d}"
-
-        new_config['firelab']['checkpoints_path'] = os.path.join(
-            new_config['firelab']['experiments_dir'],
-            old_exp_name,
-            'checkpoints',
-            f'hpo-experiment-{i:05d}'
-        )
-        new_config['firelab']['logs_path'] = os.path.join(
-            new_config['firelab']['experiments_dir'],
-            old_exp_name,
-            'logs',
-            f'hpo-experiment-{i:05d}'
-        )
-        new_config['firelab']['summary_path'] = os.path.join(
-            new_config['firelab']['experiments_dir'],
-            old_exp_name,
-            'summaries',
-            f'hpo-experiment-{i:05d}.yml'
-        )
-        new_config['firelab']['config_path'] = os.path.join(
-            new_config['firelab']['experiments_dir'],
-            old_exp_name,
-            'configs',
-            f'hpo-experiment-{i:05d}.yml'
-        )
-        new_config['firelab']['custom_data_path'] = os.path.join(
-            new_config['firelab']['experiments_dir'],
-            old_exp_name,
-            'custom_data',
-            f'hpo-experiment-{i:05d}'
-        )
+        new_config['firelab']['paths'] = {
+            'checkpoints_path': os.path.join(
+                new_config['firelab']['experiments_dir'],
+                old_exp_name,
+                'checkpoints',
+                f'hpo-experiment-{i:05d}'
+            ),
+            'logs_path': os.path.join(
+                new_config['firelab']['experiments_dir'],
+                old_exp_name,
+                'logs',
+                f'hpo-experiment-{i:05d}'
+            ),
+            'summary_path': os.path.join(
+                new_config['firelab']['experiments_dir'],
+                old_exp_name,
+                'summaries',
+                f'hpo-experiment-{i:05d}.yml'
+            ),
+            'config_path': os.path.join(
+                new_config['firelab']['experiments_dir'],
+                old_exp_name,
+                'configs',
+                f'hpo-experiment-{i:05d}.yml'
+            ),
+            'custom_data_path': os.path.join(
+                new_config['firelab']['experiments_dir'],
+                old_exp_name,
+                'custom_data',
+                f'hpo-experiment-{i:05d}'
+            )
+        }
 
         configs.append(Config(new_config))
 

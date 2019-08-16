@@ -85,8 +85,8 @@ class BaseTrainer:
     ### Public methods ###
     ######################
     def start(self):
-        if len(self.available_gpus) > 0:
-            with torch.cuda.device(self.available_gpus[0]):
+        if len(self.gpus) > 0:
+            with torch.cuda.device(self.gpus[0]):
                 self._start()
         else:
             self._start()
@@ -415,20 +415,22 @@ class BaseTrainer:
                 'I am going to run forever. Huehuehue.')
 
     def _init_devices(self):
+        assert not self.config.has('device_name'), \
+            'FireLab detects and sets `device_name` for you. You influence it via `gpus`.'
         assert not hasattr(self, 'device_name'), 'You should not overwrite "device_name" attribute in Trainer.'
-        assert not hasattr(self, 'available_gpus'), 'You should not overwrite "available_gpus" attribute in Trainer.'
+        assert not hasattr(self, 'gpus'), 'You should not overwrite "gpus" attribute in Trainer.'
 
         visible_gpus = list(range(torch.cuda.device_count()))
 
-        if self.config.has('available_gpus'):
-            self.available_gpus = self.config.available_gpus
+        if self.config.has('gpus'):
+            self.gpus = self.config.gpus
         else:
             # TODO: maybe we should better take GPUs only when allowed?
-            self.available_gpus = visible_gpus
-            self.logger.warn(f'Attribute "available_gpus" was not set in config and '
+            self.gpus = visible_gpus
+            self.logger.warn(f'Attribute "gpus" was not set in config and '
                              f'{len(visible_gpus)} GPUs were found. I gonna use them all.')
 
-        if len(self.available_gpus) > 0:
-            self.device_name = f'cuda:{self.available_gpus[0]}'
+        if len(self.gpus) > 0:
+            self.device_name = f'cuda:{self.gpus[0]}'
         else:
             self.device_name = 'cpu'
