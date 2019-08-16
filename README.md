@@ -1,4 +1,4 @@
-## firelab (version 0.0.8.2)
+## firelab (version 0.0.9)
 ### About
 Framework for running DL experiments with pytorch.
 Provides the following useful stuff:
