@@ -13,6 +13,8 @@ from firelab.utils.training_utils import is_history_improving, safe_oom_call
 from firelab.utils.fs_utils import infer_new_experiment_version
 from firelab.config import Config
 
+from .utils.distributed_utils import synchronize, is_main_process
+
 class BaseTrainer:
     def __init__(self, config):
         # TODO: we should somehow say more loudly that we are reserving these properties
@@ -21,6 +23,13 @@ class BaseTrainer:
         self.config = config
 
         self._init_logger()
+
+        if self.config.get('is_distributed', False):
+            self.logger.info(f'Running on cuda:{self.config.gpus[0]}')
+            torch.cuda.set_device(self.config.gpus[0])
+            torch.distributed.init_process_group(backend=self.config.get('distributed_backend', 'nccl'))
+            synchronize()
+
         self._init_paths()
         self._init_tb_writer()
         self._init_checkpointing_strategy()
@@ -126,7 +135,7 @@ class BaseTrainer:
     def _run_training(self):
         try:
             while not self._should_stop():
-                if self.config.get('logging.training_progress', True):
+                if self.config.get('logging.training_progress', True) and is_main_process():
                     batches = tqdm(self.train_dataloader)
 
                     self.logger.info('Running epoch #{}'.format(self.num_epochs_done+1))
@@ -135,13 +144,20 @@ class BaseTrainer:
 
                 for batch in batches:
                     self._set_train_mode()
-                    safe_oom_call(self.train_on_batch, self.logger, batch, debug=self.config.get('debug_gpu'))
+
+                    if self.config.get('should_ignore_oom_batches', False):
+                        safe_oom_call(self.train_on_batch, self.logger, batch, debug=self.config.get('debug_gpu'))
+                    else:
+                        self.train_on_batch(batch)
 
                     self.num_iters_done += 1
 
                     # Let's validate without grad enabled (less memory consumption)
                     with torch.no_grad():
-                        safe_oom_call(self._try_to_validate, self.logger, debug=self.config.get('debug_gpu'))
+                        if self.config.get('should_ignore_oom_batches', False):
+                            safe_oom_call(self._try_to_validate, self.logger, debug=self.config.get('debug_gpu'))
+                        else:
+                            self._try_to_validate()
 
                     self._checkpoint()
 
@@ -348,14 +364,14 @@ class BaseTrainer:
             self.logger.warn('`experiments_dir` is not provided, so I will not checkpoint anything or use tensorboard logging')
             self.paths = Config({})
 
-        if hasattr(self, 'paths'):
+        if hasattr(self, 'paths') and is_main_process():
             if self.paths.has('checkpoints_path'): os.makedirs(self.paths.checkpoints_path)
             if self.paths.has('logs_path'): os.makedirs(self.paths.logs_path)
             if self.paths.has('custom_data_path'): os.makedirs(self.paths.custom_data_path)
             if self.paths.has('summary_path'): os.makedirs(os.path.dirname(self.paths.summary_path), exist_ok=True)
 
     def _init_tb_writer(self):
-        if not self.paths.has('logs_path'):
+        if not self.paths.has('logs_path') or not is_main_process():
             logger = self.logger
 
             # TODO: maybe we should just raise an exception?
