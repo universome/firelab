@@ -2,6 +2,7 @@ import os
 import pickle
 import logging
 from typing import Dict
+from datetime import timedelta
 
 import yaml
 import torch
@@ -27,7 +28,10 @@ class BaseTrainer:
         if self.config.get('is_distributed', False):
             self.logger.info(f'Running on cuda:{self.config.gpus[0]}')
             torch.cuda.set_device(self.config.gpus[0])
-            torch.distributed.init_process_group(backend=self.config.get('distributed_backend', 'nccl'))
+            torch.distributed.init_process_group(
+                backend=self.config.get('distributed_backend', 'nccl'),
+                # Timeout for sync (works only for gloo)
+                timeout=timedelta(0, self.config.get('distributed_timeout', 1800)))
             synchronize()
 
         self._init_paths()
@@ -116,7 +120,7 @@ class BaseTrainer:
     #######################
     ### Private methods ###
     #######################
-    def _start(self):
+    def init(self):
         # Initialization
         self.before_init_hook()
         self.init_dataloaders()
@@ -125,6 +129,9 @@ class BaseTrainer:
         self.init_optimizers()
         self._try_to_load_checkpoint()
         self.after_init_hook()
+
+    def _start(self):
+        self.init()
 
         # Training
         self.before_training_hook()
@@ -152,14 +159,15 @@ class BaseTrainer:
 
                     self.num_iters_done += 1
 
+                    # Checkpointing the model BEFORE validation, since validation can hault :|
+                    self._checkpoint()
+
                     # Let's validate without grad enabled (less memory consumption)
                     with torch.no_grad():
                         if self.config.get('should_ignore_oom_batches', False):
                             safe_oom_call(self._try_to_validate, self.logger, debug=self.config.get('debug_gpu'))
                         else:
                             self._try_to_validate()
-
-                    self._checkpoint()
 
                     if self._should_stop():
                         break
@@ -186,6 +194,9 @@ class BaseTrainer:
             self.validate()
 
     def _checkpoint(self):
+        # Checkpointing in non-main processes lead to subtle erros when loading the weights
+        if not is_main_process(): return
+
         should_checkpoint = False
 
         if self.checkpoint_freq_iters:
