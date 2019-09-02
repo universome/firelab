@@ -162,12 +162,10 @@ class BaseTrainer:
                     # Checkpointing the model BEFORE validation, since validation can hault :|
                     self._checkpoint()
 
-                    # Let's validate without grad enabled (less memory consumption)
-                    with torch.no_grad():
-                        if self.config.get('should_ignore_oom_batches', False):
-                            safe_oom_call(self._try_to_validate, self.logger, debug=self.config.get('debug_gpu'))
-                        else:
-                            self._try_to_validate()
+                    if self.config.get('should_ignore_oom_batches', False):
+                        safe_oom_call(self._try_to_validate, self.logger, debug=self.config.get('debug_gpu'))
+                    else:
+                        self._try_to_validate()
 
                     if self._should_stop():
                         break
@@ -186,12 +184,17 @@ class BaseTrainer:
         elif self.val_freq_epochs:
             epoch_size = len(self.train_dataloader)
             was_epoch_just_finished = self.num_iters_done % epoch_size == 0
-            is_epoch_appropriate = self.num_epochs_done % self.val_freq_epochs == 0
+            # TODO: just use different callbacks for val_freq_epochs and val_freq_iters
+            num_epochs_done = (self.num_epochs_done + 1) if was_epoch_just_finished else self.num_epochs_done
+            is_epoch_appropriate = num_epochs_done % self.val_freq_epochs == 0
             should_validate = was_epoch_just_finished and is_epoch_appropriate
 
         if should_validate:
             self._set_eval_mode()
-            self.validate()
+
+            # Validating without grad enabled (less memory consumption)
+            with torch.no_grad():
+                self.validate()
 
     def _checkpoint(self):
         # Checkpointing in non-main processes lead to subtle erros when loading the weights
