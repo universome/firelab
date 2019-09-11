@@ -35,13 +35,6 @@ def touch_file(file_path):
     open(file_path, 'a').close()
 
 
-def load_config(config_path):
-    with open(config_path, "r", encoding="utf-8") as config_file:
-        config = Config(yaml.safe_load(config_file))
-
-    return config
-
-
 def check_that_path_exists(path):
     if not os.path.exists(path):
         raise Exception(PATH_NOT_EXISTS_ERROR_MSG.format(path))

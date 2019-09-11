@@ -15,7 +15,7 @@ import torch
 import coloredlogs
 
 from .config import Config
-from .utils.fs_utils import clean_dir, clean_file, touch_file, load_config, check_that_path_exists, infer_new_experiment_version
+from .utils.fs_utils import clean_dir, clean_file, touch_file, check_that_path_exists, infer_new_experiment_version
 from .utils.training_utils import fix_random_seed, run_tensorboard
 from .base_trainer import BaseTrainer
 from .hpo import spawn_configs_for_hpo
@@ -179,7 +179,7 @@ def run_single_hpo_experiment(TrainerClass:BaseTrainer,
 
 def init_config(config_path:str, exp_name:str):
     paths = compute_paths(exp_name)
-    config = load_config(config_path)
+    config = Config.load(config_path)
 
     # TODO: Validate all config properties
     assert not config.has('firelab'), \

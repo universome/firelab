@@ -136,6 +136,13 @@ class Config:
         with open(save_path, 'w') as f:
             yaml.safe_dump(self.to_dict(), f, default_flow_style=False)
 
+    @classmethod
+    def load(config_path:os.PathLike) -> "Config":
+        with open(config_path, "r", encoding="utf-8") as config_file:
+            config = Config(yaml.safe_load(config_file))
+
+        return config
+
 
 def homogenous_array_message(array:List) -> str:
     return f"You can provide only homogenous arrays. Array {array} has values of different type!"
