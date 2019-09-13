@@ -8,6 +8,13 @@ from typing import List
 
 
 class Config:
+    @classmethod
+    def load(cls, config_path:os.PathLike) -> "Config":
+        with open(config_path, "r", encoding="utf-8") as config_file:
+            config = Config(yaml.safe_load(config_file))
+
+        return config
+
     def __init__(self, config):
         assert type(config) is dict
 
@@ -113,6 +120,9 @@ class Config:
     def __str__(self):
         return yaml.safe_dump(self.to_dict(), default_flow_style=False)
 
+    def __repr__(self):
+        return str(self)
+
     def __delattr__(self, name):
         # TODO: not sure if this is the right exception cls :|
         raise PermissionError("Config is immutable.")
@@ -136,12 +146,23 @@ class Config:
         with open(save_path, 'w') as f:
             yaml.safe_dump(self.to_dict(), f, default_flow_style=False)
 
-    @classmethod
-    def load(config_path:os.PathLike) -> "Config":
-        with open(config_path, "r", encoding="utf-8") as config_file:
-            config = Config(yaml.safe_load(config_file))
+    def overwrite(self, config:"Config") -> "Config":
+        """
+        Overwrites current config with the provided one
+        """
+        result = self.to_dict()
 
-        return config
+        for key in config.keys():
+            if key in result:
+                if type(config.get(key)) is Config:
+                    result[key] = Config(result[key]).overwrite(config.get(key))
+                else:
+                    result[key] = config.get(key)
+            else:
+                result[key] = config.get(key)
+
+        return Config(result)
+
 
 
 def homogenous_array_message(array:List) -> str:

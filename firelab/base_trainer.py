@@ -1,7 +1,7 @@
 import os
 import pickle
 import logging
-from typing import Dict
+from typing import Dict, List, Callable
 from datetime import timedelta
 
 import yaml
@@ -9,6 +9,7 @@ import torch
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 import coloredlogs
+from firelab.config import Config
 
 from firelab.utils.training_utils import is_history_improving, safe_oom_call
 from firelab.utils.fs_utils import infer_new_experiment_version
@@ -21,7 +22,11 @@ class BaseTrainer:
         # TODO: we should somehow say more loudly that we are reserving these properties
         # Besides, some properties are vital for user to define at he has not idea about it :|
         # TODO: even I do not know all the options available in config :|
-        self.config = config
+        if config.has('base_config'):
+            self.config = Config.load(config.base_config)
+            self.config.overwrite(config)
+        else:
+            self.config = config
 
         self._init_logger()
 
@@ -36,6 +41,7 @@ class BaseTrainer:
 
         self._init_paths()
         self._init_tb_writer()
+        self._init_callbacks()
         self._init_checkpointing_strategy()
         self._init_validation_strategy()
         self._init_stopping_criteria()
@@ -400,6 +406,11 @@ class BaseTrainer:
             self.writer = SummaryWriter(
                 self.paths.logs_path,
                 flush_secs=self.config.get('logging.tb_flush_secs', 5))
+
+    def _init_callbacks(self):
+        self._on_iter_done_callbacks: List[Callable] = []
+        self._on_epoch_done_callbacks: List[Callable] = []
+        self._on_training_done_callbacks: List[Callable] = []
 
     def _init_checkpointing_strategy(self):
         if self.config.get('checkpoint'):
