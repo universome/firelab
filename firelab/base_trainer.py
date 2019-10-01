@@ -29,10 +29,11 @@ class BaseTrainer:
             self.config = config
 
         self._init_logger()
+        self._init_devices()
 
         if self.config.get('is_distributed', False):
-            self.logger.info(f'Running on cuda:{self.config.gpus[0]}')
-            torch.cuda.set_device(self.config.gpus[0])
+            self.logger.info(f'Running on cuda:{self.gpus[0]}')
+            torch.cuda.set_device(self.gpus[0])
             torch.distributed.init_process_group(
                 backend=self.config.get('distributed_backend', 'nccl'),
                 # Timeout for sync (works only for gloo)
@@ -45,7 +46,6 @@ class BaseTrainer:
         self._init_checkpointing_strategy()
         self._init_validation_strategy()
         self._init_stopping_criteria()
-        self._init_devices()
 
         self.num_iters_done = 0
         self.num_epochs_done = 0
@@ -465,6 +465,8 @@ class BaseTrainer:
 
         if self.config.has('gpus'):
             self.gpus = self.config.gpus
+        elif self.config.has('firelab.gpus'):
+            self.gpus = self.config.firelab.gpus
         else:
             # TODO: maybe we should better take GPUs only when allowed?
             self.gpus = visible_gpus
