@@ -79,6 +79,7 @@ def start_experiment(config, tb_port:int=None, stay_after_training:bool=False):
     else:
         trainer = TrainerClass(config)
         trainer.start()
+        del trainer # To release memory (someday)
 
     if stay_after_training:
         logger.info('Training was finished, but I gonna stay hanging here (because stay_after_training is enabled).')
@@ -141,7 +142,7 @@ def run_single_hpo_experiment(TrainerClass:BaseTrainer,
                 gpus_usage[gpu_idx] += 1
 
         config.firelab.set('gpus', gpus_to_take)
-        config.firelab.set('device_name', f'cuda:{gpus_to_take[0]}')
+        # TODO: this does not belong here...
         config.save(config.firelab.paths.config_path) # Saving config for future
 
         trainer = TrainerClass(config)
