@@ -53,35 +53,52 @@ class Config:
 
         return default_value
 
-    def set(self, key, value):
-        """Setter with some validation"""
+    def set(self, attr_path, value):
+        """Sets value to the config (if it was not set before)"""
+        assert type(attr_path) is str
 
-        assert type(key) is str
+        curr_config = self
+        attr_path = attr_path.split('.')
+        attr_parent_path = '.'.join(attr_path[:-1])
+        attr_name = attr_path[-1]
+
+        if attr_parent_path:
+            if not self.has(attr_parent_path): self._create_path(attr_parent_path)
+            curr_config = self.get(attr_parent_path)
 
         if type(value) is dict:
-            setattr(self, key, Config(value))
+            setattr(curr_config, attr_name, Config(value))
         elif type(value) is Config:
-            setattr(self, key, Config(value.to_dict()))
+            setattr(curr_config, attr_name, Config(value.to_dict()))
         elif type(value) is list or type(value) is tuple:
-            # TODO: maybe we should put everything in list? tuples look wierd
-
+            # TODO: maybe we should put everything in list? tuples look weird
             if len(value) == 0:
-                setattr(self, key, tuple())
+                setattr(curr_config, attr_name, tuple())
             else:
                 assert len(set([type(el) for el in value])) == 1, homogenous_array_message(value)
 
                 if type(value[0]) is dict:
                     # TODO: We should check types recursively
-                    setattr(self, key, tuple(Config(el) for el in value))
+                    setattr(curr_config, attr_name, tuple(Config(el) for el in value))
                 else:
-                    setattr(self, key, tuple(value))
+                    setattr(curr_config, attr_name, tuple(value))
         elif type(value) in [int, float, str, bool]:
-            setattr(self, key, value)
+            setattr(curr_config, attr_name, value)
         else:
-            raise TypeError("Unsupported type for key \"{}\": {}. "
-                            "Value is {}".format(key, type(value), value))
+            raise TypeError("Unsupported type for attr_name \"{}\": {}. "
+                            "Value is {}".format(attr_name, type(value), value))
 
-        self._keys.add(key)
+        curr_config._keys.add(attr_name)
+
+    def _create_path(self, attr_path: str):
+        """Creates attributes recursively, filled with empty configs"""
+        attr_path = attr_path.split('.')
+        curr_config = self
+
+        for attr in attr_path:
+            if not curr_config.has(attr): curr_config.set(attr, Config({}))
+
+            curr_config = curr_config.get(attr)
 
     def keys(self):
         return self._keys
@@ -162,7 +179,6 @@ class Config:
                 result[key] = config.get(key)
 
         return Config(result)
-
 
 
 def homogenous_array_message(array:List) -> str:
