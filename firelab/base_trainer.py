@@ -376,8 +376,9 @@ class BaseTrainer:
                 'experiment_path': experiment_path,
                 'checkpoints_path': os.path.join(experiment_path, 'checkpoints'),
                 'summary_path': os.path.join(experiment_path, 'summary.yml'),
+                'config_path': os.path.join(experiment_path, 'config.yml'),
                 'logs_path': os.path.join(experiment_path, 'logs'),
-                'custom_data_path': os.path.join(experiment_path, 'custom_data')
+                'custom_data_path': os.path.join(experiment_path, 'custom_data'),
             })
         else:
             # TODO: check if exp_name is provided and ask a user (y/n) if one should create the dir
@@ -389,6 +390,7 @@ class BaseTrainer:
             if self.paths.has('logs_path'): os.makedirs(self.paths.logs_path)
             if self.paths.has('custom_data_path'): os.makedirs(self.paths.custom_data_path)
             if self.paths.has('summary_path'): os.makedirs(os.path.dirname(self.paths.summary_path), exist_ok=True)
+            if self.paths.has('config_path'): self.config.save(self.paths.config_path)
 
     def _init_tb_writer(self):
         if not self.paths.has('logs_path') or not is_main_process():
