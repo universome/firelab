@@ -180,6 +180,9 @@ class Config:
 
         return Config(result)
 
+    def clone(self) -> "Config":
+        return Config(self.to_dict())
+
 
 def homogenous_array_message(array:List) -> str:
     return f"You can provide only homogenous arrays. Array {array} has values of different type!"
