@@ -4,24 +4,28 @@ so we do not need to pass params across functions and models
 """
 import os
 import yaml
-from typing import List
+from typing import List, Any
 
 
 class Config:
     @classmethod
-    def load(cls, config_path:os.PathLike) -> "Config":
+    def load(cls, config_path:os.PathLike, frozen: bool=True) -> "Config":
         with open(config_path, "r", encoding="utf-8") as config_file:
-            config = Config(yaml.safe_load(config_file))
+            config = Config(yaml.safe_load(config_file), frozen=frozen)
 
         return config
 
-    def __init__(self, config):
+    def __init__(self, config, frozen: bool=True):
         assert type(config) is dict
 
         self._keys = set()
+        self.is_frozen = frozen
 
         for key in config:
             self.set(key, config[key])
+
+    def freeze(self):
+        self.is_frozen = True
 
     def get(self, attr_path:str, default_value=None):
         """
@@ -53,6 +57,11 @@ class Config:
 
         return default_value
 
+    def __getitem__(self, key: str) -> Any:
+        assert self.has(key)
+
+        return self.get(key)
+
     def set(self, attr_path, value):
         """Sets value to the config (if it was not set before)"""
         assert type(attr_path) is str
@@ -67,9 +76,9 @@ class Config:
             curr_config = self.get(attr_parent_path)
 
         if type(value) is dict:
-            setattr(curr_config, attr_name, Config(value))
+            setattr(curr_config, attr_name, Config(value, frozen=self.is_frozen))
         elif type(value) is Config:
-            setattr(curr_config, attr_name, Config(value.to_dict()))
+            setattr(curr_config, attr_name, Config(value.to_dict(), frozen=self.is_frozen))
         elif type(value) is list or type(value) is tuple:
             # TODO: maybe we should put everything in list? tuples look weird
             if len(value) == 0:
@@ -79,7 +88,7 @@ class Config:
 
                 if type(value[0]) is dict:
                     # TODO: We should check types recursively
-                    setattr(curr_config, attr_name, tuple(Config(el) for el in value))
+                    setattr(curr_config, attr_name, tuple(Config(el, frozen=self.is_frozen) for el in value))
                 else:
                     setattr(curr_config, attr_name, tuple(value))
         elif type(value) in [int, float, str, bool]:
@@ -96,7 +105,7 @@ class Config:
         curr_config = self
 
         for attr in attr_path:
-            if not curr_config.has(attr): curr_config.set(attr, Config({}))
+            if not curr_config.has(attr): curr_config.set(attr, Config({}, frozen=self.is_frozen))
 
             curr_config = curr_config.get(attr)
 
@@ -129,8 +138,8 @@ class Config:
         return False
 
     def __setattr__(self, name, value):
-        assert not hasattr(self, name), \
-            f'You cannot change attributes (tried to change {name}), because config is immutable.'
+        assert not hasattr(self, name) or not self.is_frozen, \
+            f'You cannot change attributes (tried to change {name}), because config is frozen.'
 
         super(Config, self).__setattr__(name, value)
 
@@ -141,8 +150,11 @@ class Config:
         return str(self)
 
     def __delattr__(self, name):
-        # TODO: not sure if this is the right exception cls :|
-        raise PermissionError("Config is immutable.")
+        if self.is_frozen:
+            # TODO: not sure if this is the right exception cls :|
+            raise PermissionError("Config is frozen.")
+
+        raise NotImplementedError('Attribute deletion is not implemented yet :|')
 
     def to_dict(self):
         result = {}
@@ -178,10 +190,10 @@ class Config:
             else:
                 result[key] = config.get(key)
 
-        return Config(result)
+        return Config(result, frozen=self.is_frozen)
 
     def clone(self) -> "Config":
-        return Config(self.to_dict())
+        return Config(self.to_dict(), frozen=self.is_frozen)
 
 
 def homogenous_array_message(array:List) -> str:
