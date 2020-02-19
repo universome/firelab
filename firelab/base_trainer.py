@@ -447,8 +447,8 @@ class BaseTrainer:
         """
 
     def _init_stopping_criteria(self):
-        self.max_num_epochs = self.config.get('max_num_epochs')
-        self.max_num_iters = self.config.get('max_num_iters')
+        self.max_num_epochs = self.config.get('hp.max_num_epochs')
+        self.max_num_iters = self.config.get('hp.max_num_iters')
         self.losses = {}
 
         if not (self.max_num_iters or self.max_num_epochs or self.config.has('early_stopping')):
