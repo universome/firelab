@@ -109,7 +109,7 @@ def run_tensorboard(logdir, port):
     env = os.environ.copy()
     env["CUDA_VISIBLE_DEVICES"] = ""
 
-    proc = subprocess.Popen(['tensorboard', '--logdir', logdir, '--port', str(port)], env=env)
+    proc = subprocess.Popen(['tensorboard', '--logdir', logdir, '--port', str(port), '--host', '0.0.0.0'], env=env)
     atexit.register(lambda: proc.terminate())
 
 
