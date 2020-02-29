@@ -4,16 +4,40 @@ so we do not need to pass params across functions and models
 """
 import os
 import yaml
-from typing import List, Any
+import argparse
+from typing import List, Any, Dict
+
+
+CONFIG_ARG_PREFIX = '--config.'
 
 
 class Config:
     @classmethod
-    def load(cls, config_path:os.PathLike, frozen: bool=True) -> "Config":
+    def load(cls, config_path: os.PathLike, frozen: bool=True) -> "Config":
         with open(config_path, "r", encoding="utf-8") as config_file:
             config = Config(yaml.safe_load(config_file), frozen=frozen)
 
         return config
+
+    @classmethod
+    def read_from_cli(cls, should_infer_type: bool=True) -> "Config":
+        """Reads config args from the CLI and converts them to a config"""
+        _, config_args = argparse.ArgumentParser().parse_known_args()
+
+        assert len(config_args) % 2 == 0, \
+            "You should pass config args in [--config.arg_name arg_value] format"
+        arg_names = [config_args[i] for i in range(0, len(config_args), 2)]
+        arg_values = [config_args[i] for i in range(1, len(config_args), 2)]
+
+        result = {}
+
+        for name, value in zip(arg_names, arg_values):
+            if not name.startswith(CONFIG_ARG_PREFIX): continue
+
+            key = name[len(CONFIG_ARG_PREFIX):]
+            result[key] = infer_type_and_convert(value) if should_infer_type else value
+
+        return Config(result)
 
     def __init__(self, config, frozen: bool=True):
         assert type(config) is dict
@@ -156,7 +180,7 @@ class Config:
 
         raise NotImplementedError('Attribute deletion is not implemented yet :|')
 
-    def to_dict(self):
+    def to_dict(self) -> Dict:
         result = {}
 
         for key in self.keys():
@@ -198,3 +222,29 @@ class Config:
 
 def homogenous_array_message(array:List) -> str:
     return f"You can provide only homogenous arrays. Array {array} has values of different type!"
+
+
+def infer_type_and_convert(value:str) -> Any:
+    """
+    Chances are high that this function should never exist...
+    It tries to get a proper type and converts the value to it.
+    """
+    if value.lower() == 'true':
+        return True
+    elif value.lower() == 'false':
+        return False
+    elif value.isdigit():
+        return int(value)
+    elif is_float(value):
+        return float(value)
+    else:
+        return value
+
+
+def is_float(value: Any) -> bool:
+    """One more dirty function: it checks if the string is float."""
+    try:
+        float(value)
+        return True
+    except ValueError:
+        return False

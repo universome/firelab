@@ -12,7 +12,7 @@ def main():
     extend_with_run_tb_parser(subparsers)
     extend_with_clean_parser(subparsers)
 
-    args = parser.parse_args()
+    args, _ = parser.parse_known_args()
 
     run(args.command, args)
 

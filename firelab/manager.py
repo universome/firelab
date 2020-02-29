@@ -178,9 +178,10 @@ def run_single_hpo_experiment(TrainerClass:BaseTrainer,
 #     start_experiment(config, args)
 
 
-def init_config(config_path:str, exp_name:str):
+def init_config(config_path: str, exp_name: str):
     paths = compute_paths(exp_name)
     config = Config.load(config_path)
+    config = config.overwrite(Config.read_from_cli())
 
     # TODO: Validate all config properties
     assert not config.has('firelab'), \
