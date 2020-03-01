@@ -45,12 +45,9 @@ def run(cmd:str, args):
 def create_new_experiment(args):
     # TODO: looks like this lines should not be here
     config_name = os.path.basename(args.config_path)[:-4]
-    version = infer_new_experiment_version(get_experiments_dir(), config_name)
-
-    if args.exp_name:
-        exp_name = f'{args.exp_name}-{version:05d}'
-    else:
-        exp_name = f'{config_name}-{version:05d}'
+    exp_name = args.exp_name if args.exp_name else config_name
+    version = infer_new_experiment_version(get_experiments_dir(), exp_name)
+    exp_name = f'{exp_name}-{version:05d}'
 
     config = init_config(args.config_path, exp_name)
 

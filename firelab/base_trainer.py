@@ -452,10 +452,7 @@ class BaseTrainer:
         self.losses = {}
 
         if not (self.max_num_iters or self.max_num_epochs or self.config.has('early_stopping')):
-            self.logger.warn(
-                'You did not specify any stopping criteria' \
-                '(max_num_iters, max_num_epochs, early_stopping).' \
-                'I am going to run forever. Huehuehue.')
+            raise ValueErro('You should set either `max_num_iters` or `max_num_epochs`')
 
     def _init_devices(self):
         assert not self.config.has('device_name'), \

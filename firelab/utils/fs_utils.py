@@ -45,7 +45,7 @@ def check_that_path_does_not_exist(path):
         raise Exception(f"Path {path} already exists")
 
 
-def infer_new_experiment_version(experiments_dir:str, prefix:str) -> int:
+def infer_new_experiment_version(experiments_dir: str, prefix: str) -> int:
     experiments = os.listdir(experiments_dir)
     experiments = [exp for exp in experiments if exp.startswith(prefix)]
     versions = [exp[len(prefix) + 1:] for exp in experiments]
