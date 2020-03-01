@@ -23,6 +23,7 @@ def extend_with_start_parser(subparsers):
     parser.add_argument('config_path', type=str, metavar='config_path', help='Path to a config file')
     parser.add_argument('--stay-after-training', '-s', action='store_true') # TODO: rename.
     parser.add_argument('--tb-port', type=int, help='Port for tensorboard')
+    parser.add_argument('--exp_name', type=str, help='Experiment name')
 
 
 def extend_with_run_tb_parser(subparsers):
