@@ -37,19 +37,21 @@ def run(cmd:str, args):
     elif cmd == 'ls':
         raise NotImplementedError
     elif cmd == 'clean':
-        clean_experiments_by_prefix(args.prefix)
+        clean_experiments_by_prefix(construct_full_exp_dir(args.exp_dirname), args.prefix)
     else:
         raise NotImplementedError
 
 
 def create_new_experiment(args):
     # TODO: looks like this lines should not be here
+    exp_dir = construct_full_exp_dir(args.exp_dirname)
+    os.makedirs(exp_dir, exist_ok=True)
     config_name = os.path.basename(args.config_path)[:-4]
     exp_name = args.exp_name if args.exp_name else config_name
-    version = infer_new_experiment_version(get_experiments_dir(), exp_name)
+    version = infer_new_experiment_version(exp_dir, exp_name)
     exp_name = f'{exp_name}-{version:05d}'
 
-    config = init_config(args.config_path, exp_name)
+    config = init_config(args.config_path, exp_dir, exp_name)
 
     # TODO: Trainer should do this thing, no?
     # shutil.copyfile(args.config_path, config.firelab.paths.config_path)
@@ -180,8 +182,8 @@ def run_single_hpo_experiment(TrainerClass:BaseTrainer,
 #     start_experiment(config, args)
 
 
-def init_config(config_path: str, exp_name: str):
-    paths = compute_paths(exp_name)
+def init_config(config_path: str, exp_dirname: str, exp_name: str):
+    paths = compute_paths(exp_dirname, exp_name)
     config = Config.load(config_path)
     config = config.overwrite(Config.read_from_cli())
 
@@ -231,9 +233,9 @@ def init_config(config_path: str, exp_name: str):
     return config
 
 
-def compute_paths(exp_name):
+def compute_paths(exp_dirname, exp_name):
     "Calculates paths for a given experiment"
-    experiments_dir = get_experiments_dir()
+    experiments_dir = construct_full_exp_dir(exp_dirname)
 
     return {
         'experiments_dir': experiments_dir,
@@ -245,21 +247,19 @@ def compute_paths(exp_name):
     }
 
 
-def get_experiments_dir():
+def construct_full_exp_dir(exp_dirname: str) -> os.PathLike:
     # TODO: We can't rely on os.getcwd(). How to get project dir properly?
-    return os.path.join(os.getcwd(), "experiments")
+    return os.path.join(os.getcwd(), exp_dirname)
 
 
 def run_tensorboard_for_exp(args):
-    config_path = compute_paths(args.exp_name)['config_path']
-    config = init_config(config_path, args.exp_name)
+    config_path = compute_paths(args.exp_dirname, args.exp_name)['config_path']
+    config = init_config(config_path, construct_full_exp_dir(args.exp_dirname), args.exp_name)
     run_tensorboard(config.firelab.paths.logs_path, args.tb_port)
     signal.pause()
 
 
-def clean_experiments_by_prefix(prefix:str):
-    experiments_dir = get_experiments_dir()
-
+def clean_experiments_by_prefix(experiments_dir: str, prefix: str):
     for dir in os.listdir(experiments_dir):
         if dir.startswith(prefix):
             dir_path = os.path.join(experiments_dir, dir)

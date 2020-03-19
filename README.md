@@ -52,3 +52,6 @@ Experiment name can't duplicate each other.
 - Interactive config builder
 - Clone experiment/config
 - Add examples with several trainers in them
+- Why do we pass both exp_dir and exp_name everywhere in manager.py? We should care only about exp_path I suppose?
+- Looks like we do not need the dublicating logic of directories creation in manager.py anymore since it is in BaseTrainer
+- Rename BaseTrainer into Trainer?
