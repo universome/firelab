@@ -24,20 +24,16 @@ class Config:
         """Reads config args from the CLI and converts them to a config"""
         _, config_args = argparse.ArgumentParser().parse_known_args()
 
-        assert len(config_args) % 2 == 0, \
-            "You should pass config args in [--config.arg_name arg_value] format"
-        arg_names = [config_args[i] for i in range(0, len(config_args), 2)]
-        arg_values = [config_args[i] for i in range(1, len(config_args), 2)]
+        # Filtering out those args that do not start with `CONFIG_ARG_PREFIX`
+        config = {c: config_args[i+1] for i, c in enumerate(config_args) if c.startswith(CONFIG_ARG_PREFIX)}
 
-        result = {}
+        # Extracting true names (i.e. removing the prefix)
+        config = {c[len(CONFIG_ARG_PREFIX):]: v for c, v in config.items()}
 
-        for name, value in zip(arg_names, arg_values):
-            if not name.startswith(CONFIG_ARG_PREFIX): continue
+        if should_infer_type:
+            config = {c: infer_type_and_convert(v) for c, v in config.items()}
 
-            key = name[len(CONFIG_ARG_PREFIX):]
-            result[key] = infer_type_and_convert(value) if should_infer_type else value
-
-        return Config(result)
+        return Config(config)
 
     def __init__(self, config, frozen: bool=True):
         assert type(config) is dict
@@ -199,7 +195,7 @@ class Config:
         with open(save_path, 'w') as f:
             yaml.safe_dump(self.to_dict(), f, default_flow_style=False)
 
-    def overwrite(self, config:"Config") -> "Config":
+    def overwrite(self, config: "Config") -> "Config":
         """
         Overwrites current config with the provided one
         """
