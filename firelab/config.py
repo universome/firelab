@@ -237,7 +237,10 @@ def infer_type_and_convert(value:str) -> Any:
         if value.startswith('['): value = value[1:]
         if value.endswith(']'): value = value[:-1]
 
-        return [infer_type_and_convert(x) for x in value.split(',')]
+        separator = ',' if ',' in value else ' '
+        result = [infer_type_and_convert(x) for x in value.split(separator) if len(x) > 0]
+
+        return result
     else:
         return value
 
