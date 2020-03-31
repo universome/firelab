@@ -9,6 +9,9 @@ from typing import List, Any, Dict
 
 
 CONFIG_ARG_PREFIX = '--config.'
+ALLOWED_LIST_SEPARATORS = [',', ' ', '|', '-']
+ALLOWED_LIST_OPENERS = ['[', '(', '{']
+ALLOWED_LIST_CLOSERS = [']', ')', '}']
 
 
 class Config:
@@ -233,16 +236,31 @@ def infer_type_and_convert(value:str) -> Any:
         return int(value)
     elif is_float(value):
         return float(value)
-    elif ',' in value or (value.startswith('[') and value.endswith(']')):
-        if value.startswith('['): value = value[1:]
-        if value.endswith(']'): value = value[:-1]
+    elif is_list(value):
+        if has_list_closers(value): value = value[1:-1]
 
-        separator = ',' if ',' in value else ' '
-        result = [infer_type_and_convert(x) for x in value.split(separator) if len(x) > 0]
+        separator = next((s for s in ALLOWED_LIST_SEPARATORS if s in value), ',')
+        value = [infer_type_and_convert(x) for x in value.split(separator) if len(x) > 0]
 
-        return result
+        return value
     else:
         return value
+
+
+def is_list(value: str) -> bool:
+    """A dirty function that checks if the value looks like list"""
+    return is_separated(value) or has_list_closers(value)
+
+
+def is_separated(value: str) -> bool:
+    return any((s in value) for s in ALLOWED_LIST_SEPARATORS)
+
+
+def has_list_closers(value: str) -> bool:
+    try:
+        return (ALLOWED_LIST_OPENERS.index(value[0]) == ALLOWED_LIST_CLOSERS.index(value[-1]))
+    except:
+        return False
 
 
 def is_float(value: Any) -> bool:
