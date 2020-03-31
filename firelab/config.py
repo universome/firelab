@@ -233,6 +233,11 @@ def infer_type_and_convert(value:str) -> Any:
         return int(value)
     elif is_float(value):
         return float(value)
+    elif ',' in value or (value.startswith('[') and value.endswith(']')):
+        if value.startswith('['): value = value[1:]
+        if value.endswith(']'): value = value[:-1]
+
+        return [infer_type_and_convert(x) for x in value.split(',')]
     else:
         return value
 
