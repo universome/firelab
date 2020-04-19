@@ -81,7 +81,7 @@ class Config:
         return default_value
 
     def __getitem__(self, key: str) -> Any:
-        assert self.has(key)
+        assert self.has(key), f'Key {key} is missing in the config'
 
         return self.get(key)
 
