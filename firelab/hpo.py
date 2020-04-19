@@ -42,7 +42,7 @@ def spawn_configs_for_random_search_hpo(config:Config) -> List[Config]:
     return configs
 
 
-def create_hpo_configs(config:Config, idx_list:List[List[int]]) -> List[Config]:
+def create_hpo_configs(config: Config, idx_list: List[List[int]]) -> List[Config]:
     configs = []
 
     for i, idx in enumerate(idx_list):
