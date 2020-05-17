@@ -5,6 +5,7 @@ so we do not need to pass params across functions and models
 import os
 import yaml
 import argparse
+from hashlib import sha256
 from typing import List, Any, Dict
 
 
@@ -23,15 +24,15 @@ class Config:
         return config
 
     @classmethod
-    def read_from_cli(cls, should_infer_type: bool=True) -> "Config":
+    def read_from_cli(cls, should_infer_type: bool=True, config_arg_prefix: str=CONFIG_ARG_PREFIX) -> "Config":
         """Reads config args from the CLI and converts them to a config"""
         _, config_args = argparse.ArgumentParser().parse_known_args()
 
-        # Filtering out those args that do not start with `CONFIG_ARG_PREFIX`
-        config = {c: config_args[i+1] for i, c in enumerate(config_args) if c.startswith(CONFIG_ARG_PREFIX)}
+        # Filtering out those args that do not start with `config_arg_prefix`
+        config = {c: config_args[i+1] for i, c in enumerate(config_args) if c.startswith(config_arg_prefix)}
 
         # Extracting true names (i.e. removing the prefix)
-        config = {c[len(CONFIG_ARG_PREFIX):]: v for c, v in config.items()}
+        config = {c[len(config_arg_prefix):]: v for c, v in config.items()}
 
         if should_infer_type:
             config = {c: infer_type_and_convert(v) for c, v in config.items()}
@@ -217,6 +218,9 @@ class Config:
 
     def clone(self) -> "Config":
         return Config(self.to_dict(), frozen=self.is_frozen)
+
+    def compute_hash(self, size: int=10) -> str:
+        return sha256(str(self).encode('utf-8')).hexdigest()[:size]
 
 
 def homogenous_array_message(array:List) -> str:
