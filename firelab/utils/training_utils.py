@@ -5,6 +5,7 @@ import atexit
 
 import torch
 import numpy as np
+from torch import Tensor
 
 
 # TODO: check `no_cuda` argument in config
@@ -174,3 +175,20 @@ def get_module_device(m):
     except StopIteration:
         # TODO: maybe we should fall with error?
         return torch.device('cpu')
+
+
+def compute_pairwise_l2_dists(xs: Tensor, ys: Tensor) -> Tensor:
+    """
+    Computes pairwise L2 distances between two sets of vectors
+    @param xs: vectors of size [n, feat_dim]
+    @param ys: vectors of size [m, feat_dim]
+    """
+    assert xs.shape[1] == ys.shape[1], f"xs and ys should have the same feat dim, got {xs.shape} and {ys.shape}"
+    n, m, feat_dim = xs.shape[0], ys.shape[0], xs.shape[1]
+
+    xx = (xs * xs).sum(dim=1) # [n]
+    yy = (ys * ys).sum(dim=1) # [m]
+    xy = (xs @ ys.t()) # [n, m]
+    l2_dists = xx.view(n, 1) + yy.view(1, m) - 2 * xy
+
+    return l2_dists
