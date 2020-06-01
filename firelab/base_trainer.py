@@ -452,7 +452,7 @@ class BaseTrainer:
         self.losses = {}
 
         if not (self.max_num_iters or self.max_num_epochs or self.config.has('early_stopping')):
-            raise ValueErro('You should set either `max_num_iters` or `max_num_epochs`')
+            raise ValueError('You should set either `max_num_iters` or `max_num_epochs`')
 
     def _init_devices(self):
         assert not self.config.has('device_name'), \

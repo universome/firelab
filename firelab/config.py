@@ -19,9 +19,11 @@ class Config:
     @classmethod
     def load(cls, config_path: os.PathLike, frozen: bool=True) -> "Config":
         with open(config_path, "r", encoding="utf-8") as config_file:
-            config = Config(yaml.safe_load(config_file), frozen=frozen)
+            return Config.load_from_string(config_file, frozen=frozen)
 
-        return config
+    @classmethod
+    def load_from_string(cls, config_string: str, frozen: bool=True) -> "Config":
+        return Config(yaml.safe_load(config_string), frozen=frozen)
 
     @classmethod
     def read_from_cli(cls, should_infer_type: bool=True, config_arg_prefix: str=CONFIG_ARG_PREFIX) -> "Config":
@@ -216,8 +218,8 @@ class Config:
 
         return Config(result, frozen=self.is_frozen)
 
-    def clone(self) -> "Config":
-        return Config(self.to_dict(), frozen=self.is_frozen)
+    def clone(self, frozen: bool=True) -> "Config":
+        return Config(self.to_dict(), frozen=frozen)
 
     def compute_hash(self, size: int=10) -> str:
         return sha256(str(self).encode('utf-8')).hexdigest()[:size]

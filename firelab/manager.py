@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 coloredlogs.install(level="DEBUG", logger=logger)
 
 
-def run(cmd:str, args):
+def run(cmd: str, args):
     if cmd == 'start':
         config = create_new_experiment(args)
         start_experiment(config, tb_port=args.tb_port, stay_after_training=args.stay_after_training)
@@ -59,7 +59,7 @@ def create_new_experiment(args):
     return config
 
 
-def start_experiment(config, tb_port:int=None, stay_after_training:bool=False):
+def start_experiment(config, tb_port: int=None, stay_after_training: bool=False):
     # TODO: ensure write access to the directory
     if config.firelab.has('continue_from_iter'):
         check_that_path_exists(config.firelab.paths.logs_path)
@@ -85,9 +85,9 @@ def start_experiment(config, tb_port:int=None, stay_after_training:bool=False):
         trainer.start()
         del trainer # To release memory (someday)
 
-    if stay_after_training:
-        logger.info('Training was finished, but I gonna stay hanging here (because stay_after_training is enabled).')
-        signal.pause()
+    # if stay_after_training:
+    #     logger.info('Training was finished, but I gonna stay hanging here (because stay_after_training is enabled).')
+    #     signal.pause()
 
 
 def run_hpo(TrainerClass, global_config):
