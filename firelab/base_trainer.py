@@ -166,7 +166,7 @@ class BaseTrainer:
                     self.num_iters_done += 1
 
                     # Checkpointing the model BEFORE validation, since validation can hault :|
-                    self._checkpoint()
+                    self._try_to_checkpoint()
 
                     if self.config.get('should_ignore_oom_batches', False):
                         safe_oom_call(self._try_to_validate, self.logger, debug=self.config.get('debug_gpu'))
@@ -202,7 +202,7 @@ class BaseTrainer:
             with torch.no_grad():
                 self.validate()
 
-    def _checkpoint(self):
+    def _try_to_checkpoint(self):
         # Checkpointing in non-main processes lead to subtle erros when loading the weights
         if not is_main_process(): return
 
@@ -219,20 +219,21 @@ class BaseTrainer:
         if not should_checkpoint:
             return
 
+        self.checkpoint()
+        self._checkpoint_freq_warning()
+
+    def checkpoint(self):
         # We want to checkpoint right now!
         if not self.paths.has('checkpoints_path'):
             raise RuntimeError(
                 'Tried to checkpoint, but not checkpoint path was specified. Cannot checkpoint.'\
                 'Provide either `paths.checkpoints_path` or `experiments_dir` in config.')
 
-        for module_name in self.checkpoint_list:
+        for module_name in self.config.get('checkpoint.modules', []):
             self._save_module_state(getattr(self, module_name), module_name)
 
-        if self.config.checkpoint.get('pickle'):
-            for attr in self.config.checkpoint.pickle:
-                self._pickle(getattr(self, attr), attr)
-
-        self._checkpoint_freq_warning()
+        for pickle_attr in self.config.get('checkpoint.pickle', []):
+            self._pickle(getattr(self, pickle_attr), pickle_attr)
 
     def _checkpoint_freq_warning(self):
         """
@@ -249,12 +250,11 @@ class BaseTrainer:
             self.num_iters_done = self.config.continue_from_iter
             self.num_epochs_done = self.num_iters_done // len(self.train_dataloader)
 
-        for module_name in self.checkpoint_list:
+        for module_name in self.config.checkpoint.modules:
             self._load_module_state(getattr(self, module_name), module_name, self.config.continue_from_iter)
 
-        if self.config.checkpoint.get('pickle'):
-            for module_name in self.config.checkpoint.pickle:
-                self._unpickle(module_name, self.config.continue_from_iter)
+        for module_name in self.config.get('checkpoint.pickle', []):
+            self._unpickle(module_name, self.config.continue_from_iter)
 
     def _should_stop(self) -> bool:
         "Checks all stopping criteria"
@@ -287,13 +287,10 @@ class BaseTrainer:
         return not is_history_improving(history, n_steps, should_decrease)
 
     # TODO: we can gather modules automaticall (via "isinstance")
-    def _set_train_mode(self, flag:bool=True):
-        "Switches all models into training mode"
+    def _set_train_mode(self, flag: bool=True):
+        """Switches all models into training mode"""
 
-        if not self.config.has('modules'): return
-        if not self.config.modules.has('models'): return
-
-        for model_name in self.config.modules.models:
+        for model_name in self.config.get('modules.models', []):
             getattr(self, model_name).train(flag)
 
     def _set_eval_mode(self):
@@ -418,9 +415,11 @@ class BaseTrainer:
         if self.config.get('checkpoint'):
             self.checkpoint_freq_iters = self.config.checkpoint.get('freq_iters')
             self.checkpoint_freq_epochs = self.config.checkpoint.get('freq_epochs')
-            self.checkpoint_list = sum([self.config.modules.get(k) for k in self.config.modules.keys()], tuple())
 
-            self.logger.info('Will be checkpointing the following modules: {}'.format(self.checkpoint_list))
+            if len(self.config.get('checkpoint.modules')):
+                self.logger.warn(
+                    '`checkpoint` config is specified, but no `modules` are provided. '
+                    'No torch modules to checkpoint!')
 
             if self.config.checkpoint.get('pickle'):
                 assert type(self.config.checkpoint.pickle) is tuple
