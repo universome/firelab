@@ -226,8 +226,8 @@ class BaseTrainer:
         # We want to checkpoint right now!
         if not self.paths.has('checkpoints_path'):
             raise RuntimeError(
-                'Tried to checkpoint, but not checkpoint path was specified. Cannot checkpoint.'\
-                'Provide either `paths.checkpoints_path` or `experiments_dir` in config.')
+                'Tried to checkpoint, but no checkpoint path was specified. Cannot checkpoint.'\
+                'Provide either `paths.checkpoints_path` or `experiment_dir` in config.')
 
         for module_name in self.config.get('checkpoint.modules', []):
             self._save_module_state(getattr(self, module_name), module_name)
@@ -355,32 +355,20 @@ class BaseTrainer:
         coloredlogs.install(level=self.config.get('logging.level', 'DEBUG'), logger=self.logger)
 
     def _init_paths(self):
-        if self.config.has('firelab.paths'):
-            # We are likely and HPO experiment, paths are provided for use, let's use them
-            # TODO: validate paths
-            self.paths = Config(self.config.firelab.paths.to_dict())
-        elif self.config.has('experiments_dir'):
+        if self.config.has('firelab.experiment_dir'):
+            self.create_paths(self.config.firelab.experiment_dir)
+        elif self.config.has('experiment_dir'):
             # We are only given a path to experiment dir. Have to create all the paths by ourselves
-            os.makedirs(self.config.experiments_dir, exist_ok=True)
-
-            exp_base_name = self.config.get('exp_name', 'experiment')
-            exp_version = infer_new_experiment_version(self.config.experiments_dir, exp_base_name)
-            experiment_path = os.path.join(self.config.experiments_dir, f'{exp_base_name}-{exp_version:05d}')
-
-            self.logger.info(f'Will be saving checkpoints/logs/etc into {experiment_path} directory.')
-
-            self.paths = Config({
-                'experiment_path': experiment_path,
-                'checkpoints_path': os.path.join(experiment_path, 'checkpoints'),
-                'summary_path': os.path.join(experiment_path, 'summary.yml'),
-                'config_path': os.path.join(experiment_path, 'config.yml'),
-                'logs_path': os.path.join(experiment_path, 'logs'),
-                'custom_data_path': os.path.join(experiment_path, 'custom_data'),
-            })
+            os.makedirs(self.config.experiment_dir)
+            self.create_paths(experiment_dir)
         else:
-            # TODO: check if exp_name is provided and ask a user (y/n) if one should create the dir
-            self.logger.warn('`experiments_dir` is not provided, so I will not checkpoint anything or use tensorboard logging')
-            self.paths = Config({})
+            # Saving into `experiments` directory
+            os.makedirs('experiments', exist_ok=True)
+            exp_base_name = self.config.get('exp_name', 'unnamed-experiment')
+            exp_version = infer_new_experiment_version(self.config.experiment_dir, exp_base_name)
+            experiment_dir = os.path.join(self.config.experiment_dir, f'{exp_base_name}-{exp_version:05d}')
+
+            self.create_paths(experiment_dir)
 
         if hasattr(self, 'paths') and is_main_process():
             if self.paths.has('checkpoints_path'): os.makedirs(self.paths.checkpoints_path)
@@ -388,6 +376,18 @@ class BaseTrainer:
             if self.paths.has('custom_data_path'): os.makedirs(self.paths.custom_data_path)
             if self.paths.has('summary_path'): os.makedirs(os.path.dirname(self.paths.summary_path), exist_ok=True)
             if self.paths.has('config_path'): self.config.save(self.paths.config_path)
+
+    def create_paths(self, experiment_dir: str) -> Config:
+        self.logger.info(f'Will be saving checkpoints/logs/etc into {experiment_dir} directory.')
+
+        self.paths = Config({
+            'experiment_dir': experiment_dir,
+            'checkpoints_path': os.path.join(experiment_dir, 'checkpoints'),
+            'summary_path': os.path.join(experiment_dir, 'summary.yml'),
+            'config_path': os.path.join(experiment_dir, 'config.yml'),
+            'logs_path': os.path.join(experiment_dir, 'logs'),
+            'custom_data_path': os.path.join(experiment_dir, 'custom_data'),
+        })
 
     def _init_tb_writer(self):
         if not self.paths.has('logs_path') or not is_main_process():

@@ -94,13 +94,14 @@ class Config:
 
         curr_config = self
         attr_path = attr_path.split('.')
-        attr_parent_path = '.'.join(attr_path[:-1])
+        attr_parent_path = '.'.join(attr_path[:-1]) # "a.b.c.d" => "a.b.c"
         attr_name = attr_path[-1]
 
-        if attr_parent_path:
-            if not self.has(attr_parent_path): self._create_path(attr_parent_path)
-            curr_config = self.get(attr_parent_path)
+        if len(attr_parent_path) > 0:
+            if not self.has(attr_parent_path):
+                self._create_path(attr_parent_path)
 
+            curr_config = self.get(attr_parent_path)
         if type(value) is dict:
             setattr(curr_config, attr_name, Config(value, frozen=self.is_frozen))
         elif type(value) is Config:
