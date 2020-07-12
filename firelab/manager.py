@@ -45,7 +45,6 @@ def create_new_experiment(args):
         experiment_dir = args.experiment_dir
 
     full_experiment_dir = construct_full_path(experiment_dir)
-    os.makedirs(full_experiment_dir, exist_ok=True)
     config = init_config(args.config_path, full_experiment_dir)
 
     # TODO: Trainer should do this thing, no?
@@ -61,14 +60,14 @@ def start_experiment(config, tb_port: int=None, stay_after_training: bool=False)
         check_that_path_exists(config.firelab.paths.checkpoints_path)
         # check_that_path_exists(config.firelab.summary_path) # TODO
 
-    if tb_port:
-        logger.info(f'Starting tensorboard on port {tb_port}')
-        run_tensorboard(config.firelab.paths.logs_path, tb_port)
-
     # TODO: are there any better ways to reach src.trainers?
     sys.path.append(os.getcwd())
     trainers = importlib.import_module('src.trainers')
     TrainerClass = getattr(trainers, config.get('trainer'))
+
+    if tb_port:
+        logger.info(f'Starting tensorboard on port {tb_port}')
+        run_tensorboard(config.firelab.experiment_dir, tb_port)
 
     if config.has('hpo'):
         if config.firelab.has('continue_from_iter'):
@@ -78,6 +77,7 @@ def start_experiment(config, tb_port: int=None, stay_after_training: bool=False)
     else:
         trainer = TrainerClass(config)
         trainer.start()
+
         del trainer # To release memory (someday)
 
     # if stay_after_training:

@@ -359,23 +359,15 @@ class BaseTrainer:
             self.create_paths(self.config.firelab.experiment_dir)
         elif self.config.has('experiment_dir'):
             # We are only given a path to experiment dir. Have to create all the paths by ourselves
-            os.makedirs(self.config.experiment_dir)
             self.create_paths(experiment_dir)
         else:
             # Saving into `experiments` directory
             os.makedirs('experiments', exist_ok=True)
             exp_base_name = self.config.get('exp_name', 'unnamed-experiment')
-            exp_version = infer_new_experiment_version(self.config.experiment_dir, exp_base_name)
-            experiment_dir = os.path.join(self.config.experiment_dir, f'{exp_base_name}-{exp_version:05d}')
+            exp_version = infer_new_experiment_version('experiments', exp_base_name)
+            experiment_dir = os.path.join('experiments', f'{exp_base_name}-{exp_version:05d}')
 
             self.create_paths(experiment_dir)
-
-        if hasattr(self, 'paths') and is_main_process():
-            if self.paths.has('checkpoints_path'): os.makedirs(self.paths.checkpoints_path)
-            if self.paths.has('logs_path'): os.makedirs(self.paths.logs_path)
-            if self.paths.has('custom_data_path'): os.makedirs(self.paths.custom_data_path)
-            if self.paths.has('summary_path'): os.makedirs(os.path.dirname(self.paths.summary_path), exist_ok=True)
-            if self.paths.has('config_path'): self.config.save(self.paths.config_path)
 
     def create_paths(self, experiment_dir: str) -> Config:
         self.logger.info(f'Will be saving checkpoints/logs/etc into {experiment_dir} directory.')
@@ -388,6 +380,15 @@ class BaseTrainer:
             'logs_path': os.path.join(experiment_dir, 'logs'),
             'custom_data_path': os.path.join(experiment_dir, 'custom_data'),
         })
+
+        if is_main_process():
+            os.makedirs(self.paths.experiment_dir)
+            os.makedirs(self.paths.checkpoints_path)
+            os.makedirs(self.paths.logs_path)
+            os.makedirs(self.paths.custom_data_path)
+            os.makedirs(os.path.dirname(self.paths.summary_path), exist_ok=True)
+
+            self.config.save(self.paths.config_path)
 
     def _init_tb_writer(self):
         if not self.paths.has('logs_path') or not is_main_process():

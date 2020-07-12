@@ -8,7 +8,7 @@ setup(
     author='Ivan Skorokhodov',
     author_email='iskorokhodov@gmail.com',
     url='https://github.com/universome/firelab',
-    description='Experimental framework to run pytorch experiments',
+    description='An experimental framework to run pytorch experiments',
     packages=find_packages(exclude=('tests',)),
     entry_points = {'console_scripts': ['firelab=firelab.cli:main']},
     license='BSD',
