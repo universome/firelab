@@ -194,7 +194,7 @@ class Config:
 
         return result
 
-    def save(self, save_path:os.PathLike, parents:bool=True):
+    def save(self, save_path: os.PathLike, parents: bool=True):
         """Saves config in the specified path"""
         if parents and not os.path.exists(os.path.dirname(save_path)):
             os.makedirs(os.path.dirname(save_path), exist_ok=True)
@@ -230,7 +230,11 @@ class Config:
         Converts the config into a string which is appropriately displayed
         in markdown (useful for tensorboard logging)
         """
-        raise NotImplementedError
+        config_yml = yaml.safe_dump(self.to_dict())
+        config_yml = config_yml.replace(' ', '&nbsp;&nbsp;') # Because markdown does not support text indentation normally...
+        config_yml = config_yml.replace('\n', '  \n') # Because tensorboard uses markdown
+
+        return config_yml
 
 
 def homogenous_array_message(array: List) -> str:

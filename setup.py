@@ -13,7 +13,7 @@ setup(
     entry_points = {'console_scripts': ['firelab=firelab.cli:main']},
     license='BSD',
     python_requires='>=3.6',
-    long_description=open('README.md').read(),
+    long_description=open('README.md', encoding='utf-8').read(),
     install_requires=open('requirements.txt').readlines(),
     zip_safe=True
 )
