@@ -118,7 +118,7 @@ class Config:
                     setattr(curr_config, attr_name, tuple(Config(el, frozen=self.is_frozen) for el in value))
                 else:
                     setattr(curr_config, attr_name, tuple(value))
-        elif type(value) in [int, float, str, bool]:
+        elif type(value) in [int, float, str, bool, type(None)]:
             setattr(curr_config, attr_name, value)
         else:
             raise TypeError("Unsupported type for attr_name \"{}\": {}. "
@@ -225,6 +225,13 @@ class Config:
     def compute_hash(self, size: int=10) -> str:
         return sha256(str(self).encode('utf-8')).hexdigest()[:size]
 
+    def to_markdown(self) -> str:
+        """
+        Converts the config into a string which is appropriately displayed
+        in markdown (useful for tensorboard logging)
+        """
+        raise NotImplementedError
+
 
 def homogenous_array_message(array:List) -> str:
     return f"You can provide only homogenous arrays. Array {array} has values of different type!"
@@ -243,6 +250,8 @@ def infer_type_and_convert(value:str) -> Any:
         return int(value)
     elif is_float(value):
         return float(value)
+    elif is_none(value):
+        return None
     elif is_list(value):
         if has_list_closers(value): value = value[1:-1]
 
@@ -268,6 +277,10 @@ def has_list_closers(value: str) -> bool:
         return (ALLOWED_LIST_OPENERS.index(value[0]) == ALLOWED_LIST_CLOSERS.index(value[-1]))
     except:
         return False
+
+
+def is_none(value: str) -> bool:
+    return value.lower() == 'none' or (value.lower() == 'null')
 
 
 def is_float(value: Any) -> bool:
