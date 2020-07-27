@@ -111,7 +111,7 @@ class Config:
             if len(value) == 0:
                 setattr(curr_config, attr_name, tuple())
             else:
-                assert len(set([type(el) for el in value])) == 1, homogenous_array_message(value)
+                assert count_types(value) == 1, homogenous_array_message(value)
 
                 if type(value[0]) is dict:
                     # TODO: We should check types recursively
@@ -233,8 +233,12 @@ class Config:
         raise NotImplementedError
 
 
-def homogenous_array_message(array:List) -> str:
+def homogenous_array_message(array: List) -> str:
     return f"You can provide only homogenous arrays. Array {array} has values of different type!"
+
+
+def count_types(array: List[Any]) -> str:
+    return len(set([type(x) for x in array]))
 
 
 def infer_type_and_convert(value:str) -> Any:
@@ -252,31 +256,56 @@ def infer_type_and_convert(value:str) -> Any:
         return float(value)
     elif is_none(value):
         return None
-    elif is_list(value):
-        if has_list_closers(value): value = value[1:-1]
+    elif does_look_like_list(value):
+        maybe_list = parse_list(value)
 
-        separator = next((s for s in ALLOWED_LIST_SEPARATORS if s in value), ',')
-        value = [infer_type_and_convert(x) for x in value.split(separator) if len(x) > 0]
-
-        return value
+        if count_types(maybe_list) == 1:
+            # It's a homogenous array (hence, list)!
+            return maybe_list
+        else:
+            return value
     else:
         return value
 
 
-def is_list(value: str) -> bool:
+def does_look_like_list(value: str) -> bool:
     """A dirty function that checks if the value looks like list"""
-    return is_separated(value) or has_list_closers(value)
+    separator = detect_list_separator(value)
+    closer = detect_list_closer(value)
+
+    return (not separator is None) or (not closer is None)
 
 
-def is_separated(value: str) -> bool:
-    return any((s in value) for s in ALLOWED_LIST_SEPARATORS)
+def parse_list(value: str) -> bool:
+    if detect_list_closer(value):
+        value_stripped = value[1:-1]
+    else:
+        value_stripped = value
+
+    separator = detect_list_separator(value_stripped) or ','
+    values = [infer_type_and_convert(x) for x in value_stripped.split(separator) if len(x) > 0]
+
+    return values
 
 
-def has_list_closers(value: str) -> bool:
+def detect_list_separator(value: str) -> str:
     try:
-        return (ALLOWED_LIST_OPENERS.index(value[0]) == ALLOWED_LIST_CLOSERS.index(value[-1]))
+        return next(s for s in ALLOWED_LIST_SEPARATORS if s in value)
     except:
-        return False
+        return None
+
+
+def detect_list_closer(value: str) -> str:
+    try:
+        opener = ALLOWED_LIST_OPENERS.index(value[0])
+        closer = ALLOWED_LIST_CLOSERS.index(value[-1])
+
+        if opener == closer:
+            return opener
+        else:
+            return None
+    except:
+        return None
 
 
 def is_none(value: str) -> bool:
