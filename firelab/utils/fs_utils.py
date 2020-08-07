@@ -3,8 +3,6 @@ import shutil
 
 import yaml
 
-from ..config import Config
-
 
 # TODO: move error msgs into separate file?
 PATH_NOT_EXISTS_ERROR_MSG = ("`{}` directory or file does not exist")

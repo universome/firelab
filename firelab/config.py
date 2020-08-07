@@ -8,6 +8,8 @@ import argparse
 from hashlib import sha256
 from typing import List, Any, Dict
 
+from firelab.utils.data_utils import text_to_markdown
+
 
 CONFIG_ARG_PREFIX = '--config.'
 ALLOWED_LIST_SEPARATORS = [',', ' ', '|', '-']
@@ -231,10 +233,8 @@ class Config:
         in markdown (useful for tensorboard logging)
         """
         config_yml = yaml.safe_dump(self.to_dict())
-        config_yml = config_yml.replace(' ', '&nbsp;&nbsp;') # Because markdown does not support text indentation normally...
-        config_yml = config_yml.replace('\n', '  \n') # Because tensorboard uses markdown
 
-        return config_yml
+        return text_to_markdown(config_yml)
 
 
 def homogenous_array_message(array: List) -> str:
