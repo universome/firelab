@@ -15,7 +15,7 @@ import torch
 import coloredlogs
 
 from .config import Config
-from .utils.fs_utils import clean_dir, clean_file, touch_file, check_that_path_exists, infer_new_experiment_version
+from .utils.fs_utils import clean_dir, clean_file, touch_file, check_that_path_exists, infer_new_experiment_path
 from .utils.training_utils import fix_random_seed, run_tensorboard
 from .base_trainer import BaseTrainer
 from .hpo import spawn_configs_for_hpo
@@ -27,30 +27,10 @@ coloredlogs.install(level="DEBUG", logger=logger)
 
 def run(cmd: str, args):
     if cmd == 'start':
-        config = create_new_experiment(args)
+        config = init_config(args.config_path)
         start_experiment(config, tb_port=args.tb_port, stay_after_training=args.stay_after_training)
     else:
         raise NotImplementedError
-
-
-def create_new_experiment(args):
-    if args.experiment_dir is None:
-        # Creating a proper experiment name from config
-        config_name = os.path.basename(args.config_path)[:-4]
-        exp_name = args.exp_name if args.exp_name else config_name
-        version = infer_new_experiment_version('experiments', exp_name)
-
-        experiment_dir = f'experiments/{exp_name}-{version:05d}'
-    else:
-        experiment_dir = args.experiment_dir
-
-    full_experiment_dir = construct_full_path(experiment_dir)
-    config = init_config(args.config_path, full_experiment_dir)
-
-    # TODO: Trainer should do this thing, no?
-    # shutil.copyfile(args.config_path, config.firelab.paths.config_path)
-
-    return config
 
 
 def start_experiment(config, tb_port: int=None, stay_after_training: bool=False):
@@ -66,8 +46,13 @@ def start_experiment(config, tb_port: int=None, stay_after_training: bool=False)
     TrainerClass = getattr(trainers, config.get('trainer'))
 
     if tb_port:
+        experiment_dir = infer_new_experiment_path(
+            config.get('experiment_dir'),
+            config.get('exp_series_dir'),
+            config.get('exp_name')
+        )
         logger.info(f'Starting tensorboard on port {tb_port}')
-        run_tensorboard(config.firelab.experiment_dir, tb_port)
+        run_tensorboard(experiment_dir, tb_port)
 
     if config.has('hpo'):
         if config.firelab.has('continue_from_iter'):
@@ -157,20 +142,14 @@ def run_single_hpo_experiment(TrainerClass:BaseTrainer,
                 gpus_usage[gpu_idx] -= 1
 
 
-def init_config(config_path: str, full_experiment_dir: str) -> Config:
+def init_config(config_path: str) -> Config:
     config = Config.load(config_path)
     config = config.overwrite(Config.read_from_cli())
 
     # TODO: Validate all config properties
     assert not config.has('firelab'), \
         'You cannot set `firelab` manually. It is internally managed by FireLab framework.'
-
-    # Let's augment config with some helping stuff
-    # TODO: assign paths automatically, because we have a lot of duplication
-    config.set('firelab', {
-        'exp_name': os.path.basename(os.path.normpath(full_experiment_dir)),
-        'experiment_dir': full_experiment_dir
-    })
+    config = config.overwrite(Config({'firelab': {}}))
 
     if config.has('random_seed'):
         fix_random_seed(config.random_seed)

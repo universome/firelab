@@ -5,6 +5,7 @@ so we do not need to pass params across functions and models
 import os
 import yaml
 import argparse
+from copy import deepcopy
 from hashlib import sha256
 from typing import List, Any, Dict
 
@@ -215,9 +216,9 @@ class Config:
                 if type(config.get(key)) is Config:
                     result[key] = Config(result[key]).overwrite(config.get(key))
                 else:
-                    result[key] = config.get(key)
+                    result[key] = deepcopy(config.get(key))
             else:
-                result[key] = config.get(key)
+                result[key] = deepcopy(config.get(key))
 
         return Config(result, frozen=self.is_frozen)
 

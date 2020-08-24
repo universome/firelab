@@ -12,7 +12,7 @@ import coloredlogs
 from firelab.config import Config
 
 from firelab.utils.training_utils import is_history_improving, safe_oom_call
-from firelab.utils.fs_utils import infer_new_experiment_version
+from firelab.utils.fs_utils import infer_new_experiment_path
 from firelab.config import Config
 
 from .utils.distributed_utils import synchronize, is_main_process
@@ -355,19 +355,14 @@ class BaseTrainer:
         coloredlogs.install(level=self.config.get('logging.level', 'DEBUG'), logger=self.logger)
 
     def _init_paths(self):
-        if self.config.has('firelab.experiment_dir'):
-            self.create_paths(self.config.firelab.experiment_dir)
-        elif self.config.has('experiment_dir'):
-            # We are only given a path to experiment dir. Have to create all the paths by ourselves
-            self.create_paths(experiment_dir)
-        else:
-            # Saving into `experiments` directory
-            os.makedirs('experiments', exist_ok=True)
-            exp_base_name = self.config.get('exp_name', 'unnamed-experiment')
-            exp_version = infer_new_experiment_version('experiments', exp_base_name)
-            experiment_dir = os.path.join('experiments', f'{exp_base_name}-{exp_version:05d}')
+        experiment_dir = infer_new_experiment_path(
+            self.config.get('experiment_dir'),
+            self.config.get('exp_series_dir'),
+            self.config.get('exp_name')
+        )
 
-            self.create_paths(experiment_dir)
+        # Have to create all the paths by ourselves
+        self.create_paths(experiment_dir)
 
     def create_paths(self, experiment_dir: str) -> Config:
         self.logger.info(f'Will be saving checkpoints/logs/etc into {experiment_dir} directory.')
