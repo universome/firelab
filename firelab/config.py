@@ -13,7 +13,7 @@ from firelab.utils.data_utils import text_to_markdown
 
 
 CONFIG_ARG_PREFIX = '--config.'
-ALLOWED_LIST_SEPARATORS = [',', ' ', '|', '-']
+ALLOWED_LIST_SEPARATORS = [',', ' ', '|']
 ALLOWED_LIST_OPENERS = ['[', '(', '{']
 ALLOWED_LIST_CLOSERS = [']', ')', '}']
 
