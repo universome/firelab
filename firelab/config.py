@@ -45,7 +45,7 @@ class Config:
         return Config(config)
 
     def __init__(self, config, frozen: bool=True):
-        assert type(config) is dict
+        assert type(config) is dict, f"This argument is not a dict: {config}"
 
         self._keys = set()
         self.is_frozen = frozen
@@ -93,7 +93,7 @@ class Config:
 
     def set(self, attr_path, value):
         """Sets value to the config (if it was not set before)"""
-        assert type(attr_path) is str
+        assert type(attr_path) is str, f"This argument is not a string: {attr_path}"
 
         curr_config = self
         attr_path = attr_path.split('.')

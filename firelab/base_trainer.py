@@ -6,6 +6,7 @@ from datetime import timedelta
 
 import yaml
 import torch
+import torch.nn as nn
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 import coloredlogs
@@ -223,38 +224,53 @@ class BaseTrainer:
         self._checkpoint_freq_warning()
 
     def checkpoint(self):
+        # TODO: add max_num_checkpoints_to_store argument
         # We want to checkpoint right now!
         if not self.paths.has('checkpoints_path'):
             raise RuntimeError(
                 'Tried to checkpoint, but no checkpoint path was specified. Cannot checkpoint.'\
                 'Provide either `paths.checkpoints_path` or `experiment_dir` in config.')
 
+        overwrite = not self.config.checkpoint.get('separate_checkpoints')
+
         for module_name in self.config.get('checkpoint.modules', []):
-            self._save_module_state(getattr(self, module_name), module_name)
+            self._save_module_state(getattr(self, module_name), module_name, overwrite=overwrite)
 
         for pickle_attr in self.config.get('checkpoint.pickle', []):
-            self._pickle(getattr(self, pickle_attr), pickle_attr)
+            self._pickle(getattr(self, pickle_attr), pickle_attr, overwrite=overwrite)
+
+        self._pickle({
+            'num_iters_done': self.num_iters_done,
+            'num_epochs_done': self.num_epochs_done
+        }, 'training_state', overwrite=overwrite)
 
     def _checkpoint_freq_warning(self):
         """
-        Prints warning if we write checkpoints too often
+        Prints warning if we write checkpoints too often and they cost too much
         TODO: wip
         """
         pass
 
     def _try_to_load_checkpoint(self):
-        "Loads model state from checkpoint if it is provided"
-        if not self.config.has('continue_from_iter'): return
+        """Loads model state from checkpoint if it is provided"""
+        try:
+            training_state = self._read_pickle_module('training_state')
+        except FileNotFoundError:
+            return
 
-        if not self.config.reset_iters_counter:
-            self.num_iters_done = self.config.continue_from_iter
-            self.num_epochs_done = self.num_iters_done // len(self.train_dataloader)
+        self.num_iters_done = training_state['num_iters_done']
+        self.num_epochs_done = training_state['num_epochs_done']
+
+        if self.config.checkpoint.get('separate_checkpoints'):
+            continue_from_iter = self.num_iters_done
+        else:
+            continue_from_iter = None # Since all of them are overwritten
 
         for module_name in self.config.checkpoint.modules:
-            self._load_module_state(getattr(self, module_name), module_name, self.config.continue_from_iter)
+            self._load_module_state(getattr(self, module_name), module_name, continue_from_iter)
 
         for module_name in self.config.get('checkpoint.pickle', []):
-            self._unpickle(module_name, self.config.continue_from_iter)
+            self._unpickle(module_name, continue_from_iter)
 
     def _should_stop(self) -> bool:
         "Checks all stopping criteria"
@@ -297,26 +313,30 @@ class BaseTrainer:
         "Switches all models into evaluation mode"
         self._set_train_mode(False)
 
-    def _save_module_state(self, module, name):
-        module_name = '{}-{}.pt'.format(name, self.num_iters_done)
-        module_path = os.path.join(self.paths.checkpoints_path, module_name)
+    def _save_module_state(self, module: nn.Module, name: str, overwrite: bool=True):
+        suffix = '' if overwrite else f'-{self.num_iters_done}'
+        file_name = f'{name}{suffix}.pt'
+        module_path = os.path.join(self.paths.checkpoints_path, file_name)
         torch.save(module.state_dict(), module_path)
 
-    def _load_module_state(self, module, name, iteration):
-        module_name = '{}-{}.pt'.format(name, iteration)
-        module_path = os.path.join(self.paths.checkpoints_path, module_name)
+    def _load_module_state(self, module, name, iteration: int=None):
+        suffix = '' if iteration == None else f'-{self.num_iters_done}'
+        file_name = f'{name}{suffix}.pt'
+        module_path = os.path.join(self.paths.checkpoints_path, file_name)
         module.load_state_dict(torch.load(module_path))
 
-    def _pickle(self, module, name):
-        file_name = '{}-{}.pickle'.format(name, self.num_iters_done)
+    def _pickle(self, module, name, overwrite: bool=True):
+        suffix = '' if overwrite else f'-{self.num_iters_done}'
+        file_name = f'{name}{suffix}.pt'
         path = os.path.join(self.paths.checkpoints_path, file_name)
         pickle.dump(module, open(path, 'wb'))
 
     def _unpickle(self, name, iteration):
         setattr(self, name, self._read_pickle_module(name, iteration))
 
-    def _read_pickle_module(self, name, iteration):
-        file_name = '{}-{}.pickle'.format(name, iteration)
+    def _read_pickle_module(self, name, iteration: int=None):
+        suffix = '' if iteration == None else f'-{self.num_iters_done}'
+        file_name = f'{name}{suffix}.pt'
         path = os.path.join(self.paths.checkpoints_path, file_name)
 
         return pickle.load(open(path, 'rb'))
@@ -420,7 +440,7 @@ class BaseTrainer:
             if self.config.checkpoint.get('pickle'):
                 assert type(self.config.checkpoint.pickle) is tuple
                 self.logger.info(
-                    f'Will be checkpointing with pickle' \
+                    f'Will be checkpointing with pickle ' \
                     f'the following modules: {self.config.checkpoint.pickle}')
 
             assert not (self.checkpoint_freq_iters and self.checkpoint_freq_epochs), """
