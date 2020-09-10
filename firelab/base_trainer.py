@@ -393,6 +393,7 @@ class BaseTrainer:
             'summary_path': os.path.join(experiment_dir, 'summary.yml'),
             'config_path': os.path.join(experiment_dir, 'config.yml'),
             'logs_path': os.path.join(experiment_dir, 'logs'),
+            'tb_images_path': os.path.join(experiment_dir, 'tb_images'),
             'custom_data_path': os.path.join(experiment_dir, 'custom_data'),
         })
 
@@ -400,6 +401,7 @@ class BaseTrainer:
             os.makedirs(self.paths.experiment_dir)
             os.makedirs(self.paths.checkpoints_path)
             os.makedirs(self.paths.logs_path)
+            os.makedirs(self.paths.tb_images_path)
             os.makedirs(self.paths.custom_data_path)
             os.makedirs(os.path.dirname(self.paths.summary_path), exist_ok=True)
 
@@ -417,10 +419,13 @@ class BaseTrainer:
                     return dummy_fn
 
             self.writer = DummyWriter()
+            self.img_writer = DummyWriter()
         else:
             self.writer = SummaryWriter(
                 self.paths.logs_path,
                 flush_secs=self.config.get('logging.tb_flush_secs', 5))
+            self.img_writer = SummaryWriter(
+                self.paths.tb_images_path, flush_secs=self.config.get('logging.tb_flush_secs', 5))
 
     def _init_callbacks(self):
         self._on_iter_done_callbacks: List[Callable] = []
