@@ -35,7 +35,7 @@ def spawn_configs_for_grid_search_hpo(config) -> List[Config]:
     return configs
 
 
-def spawn_configs_for_random_search_hpo(config:Config) -> List[Config]:
+def spawn_configs_for_random_search_hpo(config: Config) -> List[Config]:
     experiments_vals_idx = random.sample(compute_hpo_vals_idx(config.hpo.grid), config.hpo.num_experiments)
     configs = create_hpo_configs(config, experiments_vals_idx)
 

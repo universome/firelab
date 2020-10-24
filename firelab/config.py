@@ -69,7 +69,7 @@ class Config:
                 - Config({"a": {"b": 4}}).get("a.c", 5) # => 5
         """
         curr_config = self
-        attrs = attr_path.split('.')
+        attrs = str(attr_path).split('.')
 
         for attr_name in attrs:
             if hasattr(curr_config, attr_name):
@@ -93,18 +93,24 @@ class Config:
 
     def set(self, attr_path, value):
         """Sets value to the config (if it was not set before)"""
-        assert type(attr_path) is str, f"This argument is not a string: {attr_path}"
+        # assert type(attr_path) is str, f"This argument is not a string: {attr_path}"
 
         curr_config = self
-        attr_path = attr_path.split('.')
-        attr_parent_path = '.'.join(attr_path[:-1]) # "a.b.c.d" => "a.b.c"
-        attr_name = attr_path[-1]
+
+        if type(attr_path) is str:
+            attr_path = attr_path.split('.')
+            attr_parent_path = '.'.join(attr_path[:-1]) # "a.b.c.d" => "a.b.c"
+            attr_name = attr_path[-1]
+        else:
+            attr_parent_path = ""
+            attr_name = str(attr_path)
 
         if len(attr_parent_path) > 0:
             if not self.has(attr_parent_path):
                 self._create_path(attr_parent_path)
 
             curr_config = self.get(attr_parent_path)
+
         if type(value) is dict:
             setattr(curr_config, attr_name, Config(value, frozen=self.is_frozen))
         elif type(value) is Config:
@@ -150,7 +156,7 @@ class Config:
         TODO: this code is almost identical to .get() method. Refactor.
         """
         curr_config = self
-        attrs = attr_path.split('.')
+        attrs = str(attr_path).split('.')
 
         for attr_lvl_name in attrs:
             if hasattr(curr_config, attr_lvl_name):

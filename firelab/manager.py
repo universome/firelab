@@ -152,7 +152,11 @@ def init_config(config_path: str) -> Config:
     config = config.overwrite(Config({'firelab': {}}))
 
     if config.has('random_seed'):
-        fix_random_seed(config.random_seed)
+        fix_random_seed(
+            config.random_seed,
+            enable_cudnn_deterministic=config.get('enable_cudnn_deterministic', False),
+            disable_cudnn_benchmark=config.get('disable_cudnn_benchmark', False),
+        )
     else:
         logger.info('Warn: random seed is not set. Consider setting it for reproducibility.')
 
@@ -160,10 +164,6 @@ def init_config(config_path: str) -> Config:
     visible_gpus = list(range(torch.cuda.device_count()))
 
     if not config.has('gpus'):
-        if len(visible_gpus) > 0:
-            logger.info(f'Found {len(visible_gpus)} GPUs, but `gpus` parameter is not set. '\
-                  'I gonna use them all!')
-
         config.firelab.set('gpus', visible_gpus)
     else:
         config.firelab.set('gpus', [gpu for gpu in config.gpus])
