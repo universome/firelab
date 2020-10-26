@@ -35,11 +35,12 @@ class BaseTrainer:
         # Reload config if we continue training
         if os.path.exists(self.paths.config_path):
             self.config = Config.load(self.paths.config_path)
-        else:
-            self.config.save(self.paths.config_path)
 
         self._init_logger()
         self._init_devices()
+
+        if self.is_main_process() and not os.path.exists(self.paths.config_path):
+            self.config.save(self.paths.config_path)
 
         if not self.config.get('silent') and self.is_main_process():
             self.logger.info(f'Experiment directory: {self.paths.experiment_dir}')

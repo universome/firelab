@@ -82,8 +82,11 @@ def fix_random_seed(seed, enable_cudnn_deterministic: bool=False, disable_cudnn_
     torch.cuda.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
 
-    if enable_cudnn_deterministic: torch.backends.cudnn.deterministic = True
-    if disable_cudnn_benchmark: torch.backends.cudnn.benchmark = False
+    if enable_cudnn_deterministic:
+        torch.backends.cudnn.deterministic = True
+
+    if disable_cudnn_benchmark:
+        torch.backends.cudnn.benchmark = False
 
 
 def is_history_improving(history, n_steps: int, should_decrease: bool):

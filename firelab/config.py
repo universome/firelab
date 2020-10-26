@@ -26,7 +26,12 @@ class Config:
 
     @classmethod
     def load_from_string(cls, config_string: str, frozen: bool=True) -> "Config":
-        return Config(yaml.safe_load(config_string), frozen=frozen)
+        yaml_dict = yaml.safe_load(config_string)
+
+        if yaml_dict is None:
+            raise ValueError(f"YML loading has failed. Here is the string that has been tried to be loaded: \n {config_string}")
+
+        return Config(yaml_dict, frozen=frozen)
 
     @classmethod
     def read_from_cli(cls, should_infer_type: bool=True, config_arg_prefix: str=CONFIG_ARG_PREFIX) -> "Config":
