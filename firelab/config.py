@@ -9,6 +9,7 @@ from copy import deepcopy
 from hashlib import sha256
 from typing import List, Any, Dict
 
+import portalocker
 from firelab.utils.data_utils import text_to_markdown
 
 
@@ -21,8 +22,9 @@ ALLOWED_LIST_CLOSERS = [']', ')', '}']
 class Config:
     @classmethod
     def load(cls, config_path: os.PathLike, frozen: bool=True) -> "Config":
+        # with portalocker.Lock(config_path, "r", encoding="utf-8", timeout=10) as config_file:
         with open(config_path, "r", encoding="utf-8") as config_file:
-            return Config.load_from_string(config_file, frozen=frozen)
+            return Config.load_from_string(config_file.read(), frozen=frozen)
 
     @classmethod
     def load_from_string(cls, config_string: str, frozen: bool=True) -> "Config":
@@ -213,7 +215,7 @@ class Config:
         if parents and not os.path.exists(os.path.dirname(save_path)):
             os.makedirs(os.path.dirname(save_path), exist_ok=True)
 
-        with open(save_path, 'w') as f:
+        with portalocker.Lock(save_path, 'w', timeout=5) as f:
             yaml.safe_dump(self.to_dict(), f, default_flow_style=False)
 
     def overwrite(self, config: "Config") -> "Config":

@@ -1,4 +1,5 @@
 import os
+import time
 import pickle
 import logging
 from typing import Dict, List, Callable
@@ -34,7 +35,13 @@ class BaseTrainer:
 
         # Reload config if we continue training
         if os.path.exists(self.paths.config_path):
+            print(f'Detected existing config: {self.paths.config_path}. Loading it...')
+            # A dirty hack that ensures that multiple trainers sync
+            # This is needed for a synced file system
+            # For some reason, portalocker does not work on a shared FS...
+            time.sleep(1)
             self.config = Config.load(self.paths.config_path)
+            self.config = self.config.overwrite(Config.read_from_cli())
 
         self._init_logger()
         self._init_devices()
@@ -260,14 +267,24 @@ class BaseTrainer:
     def _try_to_load_checkpoint(self):
         """Loads model state from checkpoint if it is provided"""
         if not self.is_main_process(): return # We should read and broadcast the checkpoint
+        if not os.path.isdir(self.paths.checkpoints_path): return
+
+        checkpoints = [c for c in os.listdir(self.paths.checkpoints_path) if 'training_state' in c]
+        if len(checkpoints) == 0:
+            return
+        checkpoints_iters = [int(c[len('training_state-'):-len('-pt')]) for c in checkpoints]
+        latest_iter = sorted(checkpoints_iters)[-1]
 
         try:
-            training_state = self._read_pickle_module('training_state')
+            training_state = self._read_pickle_module('training_state', latest_iter)
         except FileNotFoundError:
+            print('Could not load training state')
             return
 
         self.num_iters_done = training_state['num_iters_done']
         self.num_epochs_done = training_state['num_epochs_done']
+
+        print(f'Continuing from iteration: {self.num_iters_done} ({self.num_epochs_done} epochs)')
 
         if self.config.checkpoint.get('separate_checkpoints'):
             continue_from_iter = self.num_iters_done
@@ -328,10 +345,11 @@ class BaseTrainer:
         torch.save(module.state_dict(), module_path)
 
     def _load_module_state(self, module, name, iteration: int=None):
-        suffix = '' if iteration == None else f'-{self.num_iters_done}'
+        suffix = '' if iteration == None else f'-{iteration}'
         file_name = f'{name}{suffix}.pt'
         module_path = os.path.join(self.paths.checkpoints_path, file_name)
         module.load_state_dict(torch.load(module_path))
+        print(f'Loaded checkpoint: {module_path}')
 
     def _pickle(self, module, name, overwrite: bool=True):
         suffix = '' if overwrite else f'-{self.num_iters_done}'
@@ -343,11 +361,14 @@ class BaseTrainer:
         setattr(self, name, self._read_pickle_module(name, iteration))
 
     def _read_pickle_module(self, name, iteration: int=None):
-        suffix = '' if iteration == None else f'-{self.num_iters_done}'
+        suffix = '' if iteration == None else f'-{iteration}'
         file_name = f'{name}{suffix}.pt'
         path = os.path.join(self.paths.checkpoints_path, file_name)
+        module = pickle.load(open(path, 'rb'))
 
-        return pickle.load(open(path, 'rb'))
+        print(f'Loaded pickle module: {path}')
+
+        return module
 
     def _terminate_experiment(self, termination_reason):
         if not self.is_main_process(): return

@@ -4,3 +4,4 @@ torch>=1.1.0
 tb-nightly>=1.14.*
 future>=0.17
 coloredlogs>=10.0
+portalocker>=2.0.0

@@ -2,6 +2,7 @@ import os
 import gc
 import subprocess
 import atexit
+from typing import List
 
 import torch
 import numpy as np
@@ -40,9 +41,20 @@ class LinearScheme:
 
 
 class PiecewiseLinearScheme:
-    "We apply LinearScheme for each piece"
-    def __init__(self, pieces):
-        self.schemes = [LinearScheme(*p) for p in pieces]
+    """
+    We apply LinearScheme for each piece
+    """
+    def __init__(self, values: List[float], iters: List[int]):
+        assert len(values) == len(iters), "Values and iters should be of the same length"
+        assert iters[0] == 0, f"Iters should start from 0: {iters}"
+
+        self.schemes = []
+
+        for i, (start_value, start_iter) in enumerate(zip(values[:-1], iters[:-1])):
+            end_value = values[i+1]
+            period = iters[i+1] - start_iter
+
+            self.schemes.append(LinearScheme(start_value, end_value, period))
 
     def scheme_idx_for_iteration(self, iteration):
         curr_sum = 0
