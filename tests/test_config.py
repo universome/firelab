@@ -1,5 +1,5 @@
 import sys; sys.path.append('.')
-from firelab.config import Config
+from firelab.config import Config, infer_type_and_convert
 
 
 def test_getter():
@@ -25,7 +25,6 @@ def test_setter():
     assert config.e.e == tuple([1, 2, 3])
 
 
-
 def test_overwrite():
     assert Config({}).overwrite(Config({"a": 3})).a == 3
     assert Config({"a": 2}).overwrite(Config({"a": 3})).a == 3
@@ -35,3 +34,11 @@ def test_overwrite():
     assert Config({"a": {"b": 4}}).overwrite(Config({"b": 3})).a.b == 4
     assert Config({"a": {"b": 4}}).overwrite(Config({"a": {"c": 5}})).a.b == 4
     assert Config({"a": {"b": 4}}).overwrite(Config({"a": {"c": 5}})).a.c == 5
+
+
+def test_type_inference():
+    assert infer_type_and_convert("3") == 3
+    assert infer_type_and_convert("abc") == "abc"
+    assert infer_type_and_convert("a-b-c") == ["a", "b", "c"]
+    assert infer_type_and_convert("0.1,0.2,0.3") == [0.1, 0.2, 0.3]
+    assert infer_type_and_convert("asdf-asdf-3") == "asdf-asdf-3"

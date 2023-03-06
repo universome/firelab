@@ -1,4 +1,5 @@
 import os
+import time
 import pickle
 import logging
 from typing import Dict, List, Callable
@@ -6,16 +7,18 @@ from datetime import timedelta
 
 import yaml
 import torch
+import torch.nn as nn
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 import coloredlogs
 from firelab.config import Config
 
 from firelab.utils.training_utils import is_history_improving, safe_oom_call
-from firelab.utils.fs_utils import infer_new_experiment_version
+from firelab.utils.fs_utils import infer_new_experiment_path
 from firelab.config import Config
 
-from .utils.distributed_utils import synchronize, is_main_process
+from .utils.distributed_utils import is_main_process
+
 
 class BaseTrainer:
     def __init__(self, config):
@@ -28,19 +31,27 @@ class BaseTrainer:
         else:
             self.config = config
 
+        self._init_paths()
+
+        # Reload config if we continue training
+        if os.path.exists(self.paths.config_path):
+            print(f'Detected existing config: {self.paths.config_path}. Loading it...')
+            # A dirty hack that ensures that multiple trainers sync
+            # This is needed for a synced file system
+            # For some reason, portalocker does not work on a shared FS...
+            time.sleep(1)
+            self.config = Config.load(self.paths.config_path)
+            self.config = self.config.overwrite(Config.read_from_cli())
+
         self._init_logger()
         self._init_devices()
 
-        if self.config.get('is_distributed', False):
-            self.logger.info(f'Running on cuda:{self.gpus[0]}')
-            torch.cuda.set_device(self.gpus[0])
-            torch.distributed.init_process_group(
-                backend=self.config.get('distributed_backend', 'nccl'),
-                # Timeout for sync (works only for gloo)
-                timeout=timedelta(0, self.config.get('distributed_timeout', 1800)))
-            synchronize()
+        if self.is_main_process() and not os.path.exists(self.paths.config_path):
+            self.config.save(self.paths.config_path)
 
-        self._init_paths()
+        if not self.config.get('silent') and self.is_main_process():
+            self.logger.info(f'Experiment directory: {self.paths.experiment_dir}')
+
         self._init_tb_writer()
         self._init_callbacks()
         self._init_checkpointing_strategy()
@@ -77,6 +88,9 @@ class BaseTrainer:
 
     def validate(self):
         pass
+
+    def is_main_process(self) -> bool:
+        return is_main_process()
 
     #############
     ### Hooks ###
@@ -148,7 +162,7 @@ class BaseTrainer:
     def _run_training(self):
         try:
             while not self._should_stop():
-                if self.config.get('logging.training_progress', True) and is_main_process():
+                if self.config.get('logging.training_progress', True) and self.is_main_process():
                     batches = tqdm(self.train_dataloader)
 
                     self.logger.info('Running epoch #{}'.format(self.num_epochs_done+1))
@@ -204,7 +218,7 @@ class BaseTrainer:
 
     def _try_to_checkpoint(self):
         # Checkpointing in non-main processes lead to subtle erros when loading the weights
-        if not is_main_process(): return
+        if not self.is_main_process() or self.config.get('no_saving'): return
 
         should_checkpoint = False
 
@@ -223,38 +237,65 @@ class BaseTrainer:
         self._checkpoint_freq_warning()
 
     def checkpoint(self):
+        # TODO: add max_num_checkpoints_to_store argument
         # We want to checkpoint right now!
         if not self.paths.has('checkpoints_path'):
             raise RuntimeError(
-                'Tried to checkpoint, but not checkpoint path was specified. Cannot checkpoint.'\
-                'Provide either `paths.checkpoints_path` or `experiments_dir` in config.')
+                'Tried to checkpoint, but no checkpoint path was specified. Cannot checkpoint.'\
+                'Provide either `paths.checkpoints_path` or `experiment_dir` in config.')
+
+        overwrite = not self.config.checkpoint.get('separate_checkpoints')
 
         for module_name in self.config.get('checkpoint.modules', []):
-            self._save_module_state(getattr(self, module_name), module_name)
+            self._save_module_state(getattr(self, module_name), module_name, overwrite=overwrite)
 
         for pickle_attr in self.config.get('checkpoint.pickle', []):
-            self._pickle(getattr(self, pickle_attr), pickle_attr)
+            self._pickle(getattr(self, pickle_attr), pickle_attr, overwrite=overwrite)
+
+        self._pickle({
+            'num_iters_done': self.num_iters_done,
+            'num_epochs_done': self.num_epochs_done
+        }, 'training_state', overwrite=overwrite)
 
     def _checkpoint_freq_warning(self):
         """
-        Prints warning if we write checkpoints too often
+        Prints warning if we write checkpoints too often and they cost too much
         TODO: wip
         """
         pass
 
     def _try_to_load_checkpoint(self):
-        "Loads model state from checkpoint if it is provided"
-        if not self.config.has('continue_from_iter'): return
+        """Loads model state from checkpoint if it is provided"""
+        if not self.is_main_process(): return # We should read and broadcast the checkpoint
+        if not os.path.isdir(self.paths.checkpoints_path): return
 
-        if not self.config.reset_iters_counter:
-            self.num_iters_done = self.config.continue_from_iter
-            self.num_epochs_done = self.num_iters_done // len(self.train_dataloader)
+        checkpoints = [c for c in os.listdir(self.paths.checkpoints_path) if 'training_state' in c]
+        if len(checkpoints) == 0:
+            return
+        checkpoints_iters = [int(c[len('training_state-'):-len('-pt')]) for c in checkpoints]
+        latest_iter = sorted(checkpoints_iters)[-1]
+
+        try:
+            training_state = self._read_pickle_module('training_state', latest_iter)
+        except FileNotFoundError:
+            print('Could not load training state')
+            return
+
+        self.num_iters_done = training_state['num_iters_done']
+        self.num_epochs_done = training_state['num_epochs_done']
+
+        print(f'Continuing from iteration: {self.num_iters_done} ({self.num_epochs_done} epochs)')
+
+        if self.config.checkpoint.get('separate_checkpoints'):
+            continue_from_iter = self.num_iters_done
+        else:
+            continue_from_iter = None # Since all of them are overwritten
 
         for module_name in self.config.checkpoint.modules:
-            self._load_module_state(getattr(self, module_name), module_name, self.config.continue_from_iter)
+            self._load_module_state(getattr(self, module_name), module_name, continue_from_iter)
 
         for module_name in self.config.get('checkpoint.pickle', []):
-            self._unpickle(module_name, self.config.continue_from_iter)
+            self._unpickle(module_name, continue_from_iter)
 
     def _should_stop(self) -> bool:
         "Checks all stopping criteria"
@@ -297,35 +338,45 @@ class BaseTrainer:
         "Switches all models into evaluation mode"
         self._set_train_mode(False)
 
-    def _save_module_state(self, module, name):
-        module_name = '{}-{}.pt'.format(name, self.num_iters_done)
-        module_path = os.path.join(self.paths.checkpoints_path, module_name)
+    def _save_module_state(self, module: nn.Module, name: str, overwrite: bool=True):
+        suffix = '' if overwrite else f'-{self.num_iters_done}'
+        file_name = f'{name}{suffix}.pt'
+        module_path = os.path.join(self.paths.checkpoints_path, file_name)
         torch.save(module.state_dict(), module_path)
 
-    def _load_module_state(self, module, name, iteration):
-        module_name = '{}-{}.pt'.format(name, iteration)
-        module_path = os.path.join(self.paths.checkpoints_path, module_name)
+    def _load_module_state(self, module, name, iteration: int=None):
+        suffix = '' if iteration == None else f'-{iteration}'
+        file_name = f'{name}{suffix}.pt'
+        module_path = os.path.join(self.paths.checkpoints_path, file_name)
         module.load_state_dict(torch.load(module_path))
+        print(f'Loaded checkpoint: {module_path}')
 
-    def _pickle(self, module, name):
-        file_name = '{}-{}.pickle'.format(name, self.num_iters_done)
+    def _pickle(self, module, name, overwrite: bool=True):
+        suffix = '' if overwrite else f'-{self.num_iters_done}'
+        file_name = f'{name}{suffix}.pt'
         path = os.path.join(self.paths.checkpoints_path, file_name)
         pickle.dump(module, open(path, 'wb'))
 
     def _unpickle(self, name, iteration):
         setattr(self, name, self._read_pickle_module(name, iteration))
 
-    def _read_pickle_module(self, name, iteration):
-        file_name = '{}-{}.pickle'.format(name, iteration)
+    def _read_pickle_module(self, name, iteration: int=None):
+        suffix = '' if iteration == None else f'-{iteration}'
+        file_name = f'{name}{suffix}.pt'
         path = os.path.join(self.paths.checkpoints_path, file_name)
+        module = pickle.load(open(path, 'rb'))
 
-        return pickle.load(open(path, 'rb'))
+        print(f'Loaded pickle module: {path}')
+
+        return module
 
     def _terminate_experiment(self, termination_reason):
+        if not self.is_main_process(): return
         self.logger.info('Terminating experiment because [%s]' % termination_reason)
         self._write_summary(termination_reason)
 
     def _write_summary(self, termination_reason:str):
+        if not self.is_main_process() or self.config.get('no_saving'): return
         if not self.paths.has('summary_path'): return
 
         summary = {
@@ -355,42 +406,34 @@ class BaseTrainer:
         coloredlogs.install(level=self.config.get('logging.level', 'DEBUG'), logger=self.logger)
 
     def _init_paths(self):
-        if self.config.has('firelab.paths'):
-            # We are likely and HPO experiment, paths are provided for use, let's use them
-            # TODO: validate paths
-            self.paths = Config(self.config.firelab.paths.to_dict())
-        elif self.config.has('experiments_dir'):
-            # We are only given a path to experiment dir. Have to create all the paths by ourselves
-            os.makedirs(self.config.experiments_dir, exist_ok=True)
+        experiment_dir = infer_new_experiment_path(
+            self.config.get('experiment_dir'),
+            self.config.get('exp_series_dir'),
+            self.config.get('exp_name')
+        )
 
-            exp_base_name = self.config.get('exp_name', 'experiment')
-            exp_version = infer_new_experiment_version(self.config.experiments_dir, exp_base_name)
-            experiment_path = os.path.join(self.config.experiments_dir, f'{exp_base_name}-{exp_version:05d}')
+        self.paths = Config({
+            'experiment_dir': experiment_dir,
+            'checkpoints_path': os.path.join(experiment_dir, 'checkpoints'),
+            'summary_path': os.path.join(experiment_dir, 'summary.yml'),
+            'config_path': os.path.join(experiment_dir, 'config.yml'),
+            'logs_path': os.path.join(experiment_dir, 'logs'),
+            'tb_images_path': os.path.join(experiment_dir, 'tb_images'),
+            'custom_data_path': os.path.join(experiment_dir, 'custom_data'),
+        })
 
-            self.logger.info(f'Will be saving checkpoints/logs/etc into {experiment_path} directory.')
+        if self.config.get('no_saving'): return
 
-            self.paths = Config({
-                'experiment_path': experiment_path,
-                'checkpoints_path': os.path.join(experiment_path, 'checkpoints'),
-                'summary_path': os.path.join(experiment_path, 'summary.yml'),
-                'config_path': os.path.join(experiment_path, 'config.yml'),
-                'logs_path': os.path.join(experiment_path, 'logs'),
-                'custom_data_path': os.path.join(experiment_path, 'custom_data'),
-            })
-        else:
-            # TODO: check if exp_name is provided and ask a user (y/n) if one should create the dir
-            self.logger.warn('`experiments_dir` is not provided, so I will not checkpoint anything or use tensorboard logging')
-            self.paths = Config({})
-
-        if hasattr(self, 'paths') and is_main_process():
-            if self.paths.has('checkpoints_path'): os.makedirs(self.paths.checkpoints_path)
-            if self.paths.has('logs_path'): os.makedirs(self.paths.logs_path)
-            if self.paths.has('custom_data_path'): os.makedirs(self.paths.custom_data_path)
-            if self.paths.has('summary_path'): os.makedirs(os.path.dirname(self.paths.summary_path), exist_ok=True)
-            if self.paths.has('config_path'): self.config.save(self.paths.config_path)
+        # Have to create all the paths by ourselves
+        os.makedirs(self.paths.experiment_dir, exist_ok=True)
+        os.makedirs(self.paths.checkpoints_path, exist_ok=True)
+        os.makedirs(self.paths.logs_path, exist_ok=True)
+        os.makedirs(self.paths.tb_images_path, exist_ok=True)
+        os.makedirs(self.paths.custom_data_path, exist_ok=True)
+        os.makedirs(os.path.dirname(self.paths.summary_path), exist_ok=True)
 
     def _init_tb_writer(self):
-        if not self.paths.has('logs_path') or not is_main_process():
+        if not self.is_main_process() or self.config.get('no_saving') or not self.paths.has('logs_path'):
             logger = self.logger
 
             # TODO: maybe we should just raise an exception?
@@ -401,10 +444,12 @@ class BaseTrainer:
                     return dummy_fn
 
             self.writer = DummyWriter()
+            self.img_writer = DummyWriter()
         else:
             self.writer = SummaryWriter(
-                self.paths.logs_path,
-                flush_secs=self.config.get('logging.tb_flush_secs', 5))
+                self.paths.logs_path, flush_secs=self.config.get('logging.tb_flush_secs', 10))
+            self.img_writer = SummaryWriter(
+                self.paths.tb_images_path, flush_secs=self.config.get('logging.tb_flush_secs', 10))
 
     def _init_callbacks(self):
         self._on_iter_done_callbacks: List[Callable] = []
@@ -416,7 +461,7 @@ class BaseTrainer:
             self.checkpoint_freq_iters = self.config.checkpoint.get('freq_iters')
             self.checkpoint_freq_epochs = self.config.checkpoint.get('freq_epochs')
 
-            if len(self.config.get('checkpoint.modules')):
+            if len(self.config.get('checkpoint.modules')) == 0:
                 self.logger.warn(
                     '`checkpoint` config is specified, but no `modules` are provided. '
                     'No torch modules to checkpoint!')
@@ -424,7 +469,7 @@ class BaseTrainer:
             if self.config.checkpoint.get('pickle'):
                 assert type(self.config.checkpoint.pickle) is tuple
                 self.logger.info(
-                    f'Will be checkpointing with pickle' \
+                    f'Will be checkpointing with pickle ' \
                     f'the following modules: {self.config.checkpoint.pickle}')
 
             assert not (self.checkpoint_freq_iters and self.checkpoint_freq_epochs), """
@@ -460,6 +505,7 @@ class BaseTrainer:
         assert not hasattr(self, 'gpus'), 'You should not overwrite "gpus" attribute in Trainer.'
 
         visible_gpus = list(range(torch.cuda.device_count()))
+        self.is_distributed = self.config.get('distributed_training.enabled', False)
 
         if self.config.has('gpus'):
             self.gpus = self.config.gpus
@@ -468,10 +514,18 @@ class BaseTrainer:
         else:
             # TODO: maybe we should better take GPUs only when allowed?
             self.gpus = visible_gpus
-            self.logger.warn(f'Attribute "gpus" was not set in config and '
-                             f'{len(visible_gpus)} GPUs were found. I gonna use them all.')
+            if not self.config.get('silent'):
+                self.logger.warn(f'Attribute "gpus" was not set in config and '
+                                f'{len(visible_gpus)} GPUs were found. I gonna use them.')
 
-        if len(self.gpus) > 0:
+        if self.is_distributed:
+            import horovod.torch as hvd
+            hvd.init()
+            torch.cuda.device(hvd.local_rank())
+            self.device_name = f'cuda:{hvd.local_rank()}'
+            self.logger.info(f'My rank is: {hvd.local_rank()}')
+        elif len(self.gpus) > 0:
             self.device_name = f'cuda:{self.gpus[0]}'
+            torch.cuda.device(self.gpus[0])
         else:
             self.device_name = 'cpu'

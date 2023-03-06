@@ -5,12 +5,16 @@ so we do not need to pass params across functions and models
 import os
 import yaml
 import argparse
+from copy import deepcopy
 from hashlib import sha256
 from typing import List, Any, Dict
 
+import portalocker
+from firelab.utils.data_utils import text_to_markdown
+
 
 CONFIG_ARG_PREFIX = '--config.'
-ALLOWED_LIST_SEPARATORS = [',', ' ', '|', '-']
+ALLOWED_LIST_SEPARATORS = [',', ' ', '|']
 ALLOWED_LIST_OPENERS = ['[', '(', '{']
 ALLOWED_LIST_CLOSERS = [']', ')', '}']
 
@@ -18,12 +22,18 @@ ALLOWED_LIST_CLOSERS = [']', ')', '}']
 class Config:
     @classmethod
     def load(cls, config_path: os.PathLike, frozen: bool=True) -> "Config":
+        # with portalocker.Lock(config_path, "r", encoding="utf-8", timeout=10) as config_file:
         with open(config_path, "r", encoding="utf-8") as config_file:
-            return Config.load_from_string(config_file, frozen=frozen)
+            return Config.load_from_string(config_file.read(), frozen=frozen)
 
     @classmethod
     def load_from_string(cls, config_string: str, frozen: bool=True) -> "Config":
-        return Config(yaml.safe_load(config_string), frozen=frozen)
+        yaml_dict = yaml.safe_load(config_string)
+
+        if yaml_dict is None:
+            raise ValueError(f"YML loading has failed. Here is the string that has been tried to be loaded: \n {config_string}")
+
+        return Config(yaml_dict, frozen=frozen)
 
     @classmethod
     def read_from_cli(cls, should_infer_type: bool=True, config_arg_prefix: str=CONFIG_ARG_PREFIX) -> "Config":
@@ -42,7 +52,7 @@ class Config:
         return Config(config)
 
     def __init__(self, config, frozen: bool=True):
-        assert type(config) is dict
+        assert type(config) is dict, f"This argument is not a dict: {config}"
 
         self._keys = set()
         self.is_frozen = frozen
@@ -66,7 +76,7 @@ class Config:
                 - Config({"a": {"b": 4}}).get("a.c", 5) # => 5
         """
         curr_config = self
-        attrs = attr_path.split('.')
+        attrs = str(attr_path).split('.')
 
         for attr_name in attrs:
             if hasattr(curr_config, attr_name):
@@ -90,15 +100,22 @@ class Config:
 
     def set(self, attr_path, value):
         """Sets value to the config (if it was not set before)"""
-        assert type(attr_path) is str
+        # assert type(attr_path) is str, f"This argument is not a string: {attr_path}"
 
         curr_config = self
-        attr_path = attr_path.split('.')
-        attr_parent_path = '.'.join(attr_path[:-1])
-        attr_name = attr_path[-1]
 
-        if attr_parent_path:
-            if not self.has(attr_parent_path): self._create_path(attr_parent_path)
+        if type(attr_path) is str:
+            attr_path = attr_path.split('.')
+            attr_parent_path = '.'.join(attr_path[:-1]) # "a.b.c.d" => "a.b.c"
+            attr_name = attr_path[-1]
+        else:
+            attr_parent_path = ""
+            attr_name = str(attr_path)
+
+        if len(attr_parent_path) > 0:
+            if not self.has(attr_parent_path):
+                self._create_path(attr_parent_path)
+
             curr_config = self.get(attr_parent_path)
 
         if type(value) is dict:
@@ -110,14 +127,14 @@ class Config:
             if len(value) == 0:
                 setattr(curr_config, attr_name, tuple())
             else:
-                assert len(set([type(el) for el in value])) == 1, homogenous_array_message(value)
+                assert count_types(value) == 1, homogenous_array_message(value)
 
                 if type(value[0]) is dict:
                     # TODO: We should check types recursively
                     setattr(curr_config, attr_name, tuple(Config(el, frozen=self.is_frozen) for el in value))
                 else:
                     setattr(curr_config, attr_name, tuple(value))
-        elif type(value) in [int, float, str, bool]:
+        elif type(value) in [int, float, str, bool, type(None)]:
             setattr(curr_config, attr_name, value)
         else:
             raise TypeError("Unsupported type for attr_name \"{}\": {}. "
@@ -146,7 +163,7 @@ class Config:
         TODO: this code is almost identical to .get() method. Refactor.
         """
         curr_config = self
-        attrs = attr_path.split('.')
+        attrs = str(attr_path).split('.')
 
         for attr_lvl_name in attrs:
             if hasattr(curr_config, attr_lvl_name):
@@ -193,12 +210,12 @@ class Config:
 
         return result
 
-    def save(self, save_path:os.PathLike, parents:bool=True):
+    def save(self, save_path: os.PathLike, parents: bool=True):
         """Saves config in the specified path"""
         if parents and not os.path.exists(os.path.dirname(save_path)):
             os.makedirs(os.path.dirname(save_path), exist_ok=True)
 
-        with open(save_path, 'w') as f:
+        with portalocker.Lock(save_path, 'w', timeout=5) as f:
             yaml.safe_dump(self.to_dict(), f, default_flow_style=False)
 
     def overwrite(self, config: "Config") -> "Config":
@@ -212,9 +229,9 @@ class Config:
                 if type(config.get(key)) is Config:
                     result[key] = Config(result[key]).overwrite(config.get(key))
                 else:
-                    result[key] = config.get(key)
+                    result[key] = deepcopy(config.get(key))
             else:
-                result[key] = config.get(key)
+                result[key] = deepcopy(config.get(key))
 
         return Config(result, frozen=self.is_frozen)
 
@@ -224,9 +241,22 @@ class Config:
     def compute_hash(self, size: int=10) -> str:
         return sha256(str(self).encode('utf-8')).hexdigest()[:size]
 
+    def to_markdown(self) -> str:
+        """
+        Converts the config into a string which is appropriately displayed
+        in markdown (useful for tensorboard logging)
+        """
+        config_yml = yaml.safe_dump(self.to_dict())
 
-def homogenous_array_message(array:List) -> str:
+        return text_to_markdown(config_yml)
+
+
+def homogenous_array_message(array: List) -> str:
     return f"You can provide only homogenous arrays. Array {array} has values of different type!"
+
+
+def count_types(array: List[Any]) -> str:
+    return len(set([type(x) for x in array]))
 
 
 def infer_type_and_convert(value:str) -> Any:
@@ -242,31 +272,62 @@ def infer_type_and_convert(value:str) -> Any:
         return int(value)
     elif is_float(value):
         return float(value)
-    elif is_list(value):
-        if has_list_closers(value): value = value[1:-1]
+    elif is_none(value):
+        return None
+    elif does_look_like_list(value):
+        maybe_list = parse_list(value)
 
-        separator = next((s for s in ALLOWED_LIST_SEPARATORS if s in value), ',')
-        value = [infer_type_and_convert(x) for x in value.split(separator) if len(x) > 0]
-
-        return value
+        if count_types(maybe_list) == 1:
+            # It's a homogenous array (hence, list)!
+            return maybe_list
+        else:
+            return value
     else:
         return value
 
 
-def is_list(value: str) -> bool:
+def does_look_like_list(value: str) -> bool:
     """A dirty function that checks if the value looks like list"""
-    return is_separated(value) or has_list_closers(value)
+    separator = detect_list_separator(value)
+    closer = detect_list_closer(value)
+
+    return (not separator is None) or (not closer is None)
 
 
-def is_separated(value: str) -> bool:
-    return any((s in value) for s in ALLOWED_LIST_SEPARATORS)
+def parse_list(value: str) -> bool:
+    if detect_list_closer(value):
+        value_stripped = value[1:-1]
+    else:
+        value_stripped = value
+
+    separator = detect_list_separator(value_stripped) or ','
+    values = [infer_type_and_convert(x) for x in value_stripped.split(separator) if len(x) > 0]
+
+    return values
 
 
-def has_list_closers(value: str) -> bool:
+def detect_list_separator(value: str) -> str:
     try:
-        return (ALLOWED_LIST_OPENERS.index(value[0]) == ALLOWED_LIST_CLOSERS.index(value[-1]))
+        return next(s for s in ALLOWED_LIST_SEPARATORS if s in value)
     except:
-        return False
+        return None
+
+
+def detect_list_closer(value: str) -> str:
+    try:
+        opener = ALLOWED_LIST_OPENERS.index(value[0])
+        closer = ALLOWED_LIST_CLOSERS.index(value[-1])
+
+        if opener == closer:
+            return opener
+        else:
+            return None
+    except:
+        return None
+
+
+def is_none(value: str) -> bool:
+    return value.lower() == 'none' or (value.lower() == 'null')
 
 
 def is_float(value: Any) -> bool:

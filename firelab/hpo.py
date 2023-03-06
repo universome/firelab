@@ -35,7 +35,7 @@ def spawn_configs_for_grid_search_hpo(config) -> List[Config]:
     return configs
 
 
-def spawn_configs_for_random_search_hpo(config:Config) -> List[Config]:
+def spawn_configs_for_random_search_hpo(config: Config) -> List[Config]:
     experiments_vals_idx = random.sample(compute_hpo_vals_idx(config.hpo.grid), config.hpo.num_experiments)
     configs = create_hpo_configs(config, experiments_vals_idx)
 
@@ -57,39 +57,8 @@ def create_hpo_configs(config: Config, idx_list: List[List[int]]) -> List[Config
 
         old_exp_name = new_config['firelab']['exp_name']
         new_config['firelab']['exp_name'] = f"{old_exp_name}_hpo-experiment-{i:05d}"
-        new_config['firelab']['paths'] = {
-            'project_path': new_config['firelab']['paths']['project_path'],
-            'checkpoints_path': os.path.join(
-                new_config['firelab']['paths']['experiments_dir'],
-                old_exp_name,
-                'checkpoints',
-                f'hpo-experiment-{i:05d}'
-            ),
-            'logs_path': os.path.join(
-                new_config['firelab']['paths']['experiments_dir'],
-                old_exp_name,
-                'logs',
-                f'hpo-experiment-{i:05d}'
-            ),
-            'summary_path': os.path.join(
-                new_config['firelab']['paths']['experiments_dir'],
-                old_exp_name,
-                'summaries',
-                f'hpo-experiment-{i:05d}.yml'
-            ),
-            'config_path': os.path.join(
-                new_config['firelab']['paths']['experiments_dir'],
-                old_exp_name,
-                'configs',
-                f'hpo-experiment-{i:05d}.yml'
-            ),
-            'custom_data_path': os.path.join(
-                new_config['firelab']['paths']['experiments_dir'],
-                old_exp_name,
-                'custom_data',
-                f'hpo-experiment-{i:05d}'
-            )
-        }
+        new_config['firelab']['experiment_dir'] = os.path.join(
+            new_config['experiment_dir'], old_exp_name, f'hpo-experiment-{i:05d}')
 
         configs.append(Config(new_config))
 
